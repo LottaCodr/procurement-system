@@ -1,66 +1,79 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load core_tags %}
 {% block title %}Objections — {{ t.ocid }}{% endblock %}
-{% block content %}
-<nav class="crumb">
-  <a href="/tenders/">Tenders</a> &rsaquo;
-  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Objections
-</nav>
+{% block description %}Objections filed against awards on {{ t.ocid }}: the ground, the panel, the decision and whether the process was frozen.{% endblock %}
 
-<div class="card">
-  <h1>Objections &amp; appeals</h1>
-  <p class="muted">{{ t.title }} — {{ t.agency.name }}</p>
-  <p>Objections are filed within 10 working days of award publication. The Georgia mechanism:
-  a credible objection freezes the tender for 10 days while an independent panel decides.
-  Half the panel is nominated by civil society, and the Bureau cannot reject those nominees.</p>
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></li>
+  <li><span aria-current="page">Objections</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ t.agency.name }} · {{ t.title }}</p>
+  <h1>Objections on this process</h1>
+  <p class="lede">{{ objections|length }} objection{{ objections|length|pluralize }} filed. An objection is
+  not a complaint in a drawer: filing one freezes the procedure for ten days while a panel — half of it
+  nominated by civil society — decides whether the award stands.</p>
+</header>
+
+<div class="callout callout--info">
+  <span class="callout__title">Who can object, and when</span>
+  <p>Any bidder or member of the public may object inside the published window, which is printed on the
+  award. The window is a real limit: after it closes the freeze route closes with it. If you believe the
+  decision was unlawful outside that window, the route is the courts, and the register stays as evidence
+  either way.</p>
+  <p><a href="/tenders/help/#objection">How to file an objection</a></p>
 </div>
 
-{% for o in objections %}
-<div class="card">
-  <div class="grid-2">
-    <div>
-      <h3>Objection #{{ o.pk }}</h3>
-      <dl>
-        <dt>Award</dt>
-        <dd>{% if o.award %}₦{{ o.award.amount|floatformat:2 }} to {{ o.award.bid.supplier.legal_name }}{% else %}—{% endif %}</dd>
-        <dt>Filed by</dt><dd>{{ o.filed_by_label }}</dd>
-        <dt>Filed at</dt><dd>{{ o.filed_at|date:"d M Y H:i" }}</dd>
-        <dt>Outcome</dt>
-        <dd><span class="badge {% if o.outcome == 'UPHELD' %}bad{% elif o.outcome == 'DISMISSED' %}ok{% endif %}">{{ o.get_outcome_display }}</span></dd>
-        {% if o.frozen_until %}
-        <dt>Frozen until</dt><dd>{{ o.frozen_until|date:"d M Y H:i" }}</dd>
-        {% endif %}
-      </dl>
-    </div>
-    <div>
-      <h4>Ground</h4>
+{% if objections %}
+  {% for o in objections %}
+    <article class="card">
+      <div class="spread">
+        <h2>Objection filed {{ o.filed_at|datetime_wat }}</h2>
+        {{ o.outcome|status_tag }}
+      </div>
+      <p class="tiny">Filed by {{ o.filed_by_label|default:"an anonymous complainant" }}
+        {% if o.award %}· against the award to {{ o.award.bid.supplier.legal_name }}
+        ({{ o.award.amount|naira }}){% endif %}</p>
       <p>{{ o.ground }}</p>
-      {% if o.decision %}
-      <h4>Decision</h4>
-      <p>{{ o.decision }}</p>
-      <p class="tiny">Decided {{ o.decided_at|date:"d M Y H:i" }}</p>
+
+      {% if o.panel_members %}
+        <h3>Panel</h3>
+        <ul>
+          {% for m in o.panel_members %}
+            <li>{{ m.name }}
+              <span class="tiny">{{ m.nominator|default:"Bureau" }}-nominated</span></li>
+          {% endfor %}
+        </ul>
+        <p class="tiny">Half the panel is nominated by civil society and the Bureau cannot reject those
+        nominees. A panel the accused appoints is not a review.</p>
+      {% else %}
+        <p class="tiny"><span class="tag tag--warn">no panel recorded yet</span></p>
       {% endif %}
+
+      {% if o.decision %}
+        <h3>Decision</h3>
+        <p>{{ o.decision }}</p>
+        <p class="tiny">Decided {{ o.decided_at|shortdate }}{% if o.frozen_until %} · procedure frozen until
+          {{ o.frozen_until|datetime_wat }}{% endif %}</p>
+      {% else %}
+        <p class="tiny"><span class="tag tag--warn">awaiting decision</span> — the freeze applies while the
+        panel sits.</p>
+      {% endif %}
+
+      <p><a href="/objections/{{ o.pk }}/">Read the full objection file, including published evidence</a></p>
+    </article>
+  {% endfor %}
+{% else %}
+  <div class="empty">
+    <h3>No objection has been filed on this process</h3>
+    <p>The objection window is published on every award. If it is still open, the route is available to any
+    bidder and to any member of the public — you do not need a lawyer to file.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/{{ t.ocid }}/">Back to the tender record</a>
+      <a class="btn btn--secondary" href="/tenders/help/#objection">How objections work</a>
     </div>
   </div>
-
-  {% if o.panelists.exists %}
-  <h4>Panel composition</h4>
-  <table class="data">
-    <thead><tr><th>Name</th><th>Nominator</th><th>Role</th></tr></thead>
-    <tbody>
-    {% for p in o.panelists.all %}
-    <tr>
-      <td>{{ p.name }}</td>
-      <td><span class="badge {% if p.nominator == 'CSO' %}ok{% endif %}">{{ p.get_nominator_display }}</span></td>
-      <td>{{ p.role|default:"—" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-
-  <a href="/tenders/objections/{{ o.pk }}/" class="btn">View detail</a>
-</div>
-{% empty %}
-<div class="card"><p class="muted">No objections have been filed on this tender.</p></div>
-{% endfor %}
+{% endif %}
 {% endblock %}

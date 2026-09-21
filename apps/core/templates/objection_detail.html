@@ -1,75 +1,124 @@
-{% extends "base.html" %}
-{% block title %}Objection #{{ o.pk }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Objection — {{ o.tender.ocid }}{% endblock %}
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/">Tenders</a> &rsaquo;
-  <a href="/tenders/{{ o.tender.ocid }}/">{{ o.tender.ocid }}</a> &rsaquo;
-  <a href="/tenders/{{ o.tender.ocid }}/objections/">Objections</a> &rsaquo; #{{ o.pk }}
-</nav>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ o.tender.ocid }}/">{{ o.tender.ocid }}</a></li>
+  <li><a href="/tenders/{{ o.tender.ocid }}/objections/">Objections</a></li>
+  <li><span aria-current="page">This objection</span></li>
+</ol></nav>
 
-<div class="card">
-  <h1>Objection #{{ o.pk }}</h1>
-  <div class="meta">
-    <span class="badge {% if o.outcome == 'UPHELD' %}bad{% elif o.outcome == 'DISMISSED' %}ok{% endif %}">{{ o.get_outcome_display }}</span>
-    {% if o.frozen_until %}<span>Frozen until {{ o.frozen_until|date:"d M Y H:i" }}</span>{% endif %}
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ o.tender.title }} · {{ o.tender.agency.name }}</p>
+  <h1>Objection filed {{ o.filed_at|datetime_wat }}</h1>
+  <div class="cluster">
+    {{ o.outcome|status_tag }}
+    {% if o.frozen_until %}<span class="tag tag--warn">procedure frozen until {{ o.frozen_until|shortdate }}</span>{% endif %}
   </div>
-  <dl>
-    <dt>Tender</dt><dd><a href="/tenders/{{ o.tender.ocid }}/">{{ o.tender.ocid }}</a> — {{ o.tender.title }}</dd>
-    <dt>Award</dt>
-    <dd>{% if o.award %}₦{{ o.award.amount|floatformat:2 }} to {{ o.award.bid.supplier.legal_name }} ({{ o.award.bid.supplier.rc_number }}){% else %}—{% endif %}</dd>
-    <dt>Filed by</dt><dd>{{ o.filed_by_label }}</dd>
-    <dt>Filed at</dt><dd>{{ o.filed_at|date:"d M Y H:i" }}</dd>
-  </dl>
-</div>
+</header>
 
-<div class="card">
-  <h2>Ground</h2>
-  <p>{{ o.ground }}</p>
-</div>
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="ground-h">
+      <h2 id="ground-h">The ground of objection</h2>
+      <div class="card">
+        <p>{{ o.ground }}</p>
+        <p class="tiny">Filed by {{ o.filed_by_label|default:"an anonymous complainant" }}.
+        Published verbatim: an objection register that paraphrases objections is one that can quietly
+        change them.</p>
+      </div>
+    </section>
 
-<div class="card">
-  <h2>Panel composition</h2>
-  <p>The Georgia mechanism requires an independent panel with civil society representation.
-  The Bureau cannot reject CSO nominees.</p>
-  <div class="grid-2">
-    <div>
-      <h3>Government nominees</h3>
-      {% for p in gov_panelists %}
-      <p><strong>{{ p.name }}</strong> — {{ p.role|default:"Panel member" }}</p>
-      {% empty %}<p class="muted">None appointed.</p>{% endfor %}
-    </div>
-    <div>
-      <h3>Civil society nominees</h3>
-      {% for p in cso_panelists %}
-      <p><strong>{{ p.name }}</strong> — {{ p.role|default:"Panel member" }}</p>
-      {% empty %}<p class="muted">None appointed.</p>{% endfor %}
-    </div>
+    <section aria-labelledby="panel-h">
+      <h2 id="panel-h">Panel composition</h2>
+      {% if gov_panelists or cso_panelists %}
+        <div class="grid grid--2">
+          <div class="card">
+            <h3>Nominated by civil society ({{ cso_panelists|length }})</h3>
+            {% if cso_panelists %}
+              <ul>{% for p in cso_panelists %}<li>{{ p.name }}
+                {% if p.organisation %}<span class="tiny">{{ p.organisation }}</span>{% endif %}</li>{% endfor %}</ul>
+            {% else %}<p class="muted">None recorded.</p>{% endif %}
+          </div>
+          <div class="card">
+            <h3>Nominated by government ({{ gov_panelists|length }})</h3>
+            {% if gov_panelists %}
+              <ul>{% for p in gov_panelists %}<li>{{ p.name }}
+                {% if p.organisation %}<span class="tiny">{{ p.organisation }}</span>{% endif %}</li>{% endfor %}</ul>
+            {% else %}<p class="muted">None recorded.</p>{% endif %}
+          </div>
+        </div>
+        <p class="tiny">The civil-society seats are not the Bureau's to fill or refuse. Parity on the panel
+        is what makes the review a review.</p>
+      {% else %}
+        <p class="muted">No panel has been recorded for this objection yet.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="evidence-h">
+      <h2 id="evidence-h">Evidence on the public file</h2>
+      {% if evidence_public %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Published evidence, scrollable">
+          <table class="data">
+            <caption>Evidence the Bureau has published with this objection. Confidential submissions are
+            held but not shown; the panel sees them, and the fact of their existence is recorded here.</caption>
+            <thead><tr><th scope="col">Evidence</th><th scope="col">Submitted</th><th scope="col">Digest</th><th scope="col">Type</th></tr></thead>
+            <tbody>
+              {% for e in evidence_public %}
+                <tr>
+                  <th scope="row">{{ e.title|default:"Evidence" }}</th>
+                  <td>{{ e.submitted_at|shortdate }}</td>
+                  <td><span class="hash">{{ e.sha256|hash_short }}</span></td>
+                  <td>{{ e.kind|default:"document" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No evidence has been placed on the public file for this objection.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="decision-h">
+      <h2 id="decision-h">Decision</h2>
+      {% if o.decision %}
+        <div class="card">
+          <p>{{ o.decision }}</p>
+          <p class="tiny">Decided {{ o.decided_at|datetime_wat }}. Outcome: {{ o.get_outcome_display }}.</p>
+        </div>
+      {% else %}
+        <div class="callout callout--warn">
+          <span class="callout__title">No decision has been published</span>
+          <p>While the objection is undecided, the procedure stays frozen: no award is signed, no work
+          starts. The date by which a decision is due is published with the freeze.</p>
+        </div>
+      {% endif %}
+    </section>
   </div>
-</div>
 
-{% if evidence_public %}
-<div class="card">
-  <h2>Evidence</h2>
-  <table class="data">
-    <thead><tr><th>Description</th><th>Hash</th><th>Uploaded</th></tr></thead>
-    <tbody>
-    {% for e in evidence_public %}
-    <tr>
-      <td>{{ e.description }}</td>
-      <td><code class="tiny">{{ e.sha256|truncatechars:20 }}</code></td>
-      <td>{{ e.uploaded_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <aside aria-label="Objection context">
+    <div class="card">
+      <h2>What is being challenged</h2>
+      {% if o.award %}
+        <dl class="kv kv--stack">
+          <dt>Award to</dt><dd>{{ o.award.bid.supplier.legal_name }}</dd>
+          <dt>Amount</dt><dd>{{ o.award.amount|naira_exact }}</dd>
+          <dt>Award status</dt><dd>{{ o.award.status|status_tag }}</dd>
+          <dt>Reason recorded</dt><dd>{{ o.award.reason|truncatewords:25 }}</dd>
+        </dl>
+      {% else %}
+        <p class="muted">This objection is against the process rather than a specific award.</p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>Related</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/{{ o.tender.ocid }}/">Tender record</a></li>
+        <li><a href="/tenders/{{ o.tender.ocid }}/objections/">All objections on this process</a></li>
+        <li><a href="/tenders/help/#objection">Filing an objection</a></li>
+      </ul>
+    </div>
+  </aside>
 </div>
-{% endif %}
-
-{% if o.decision %}
-<div class="card">
-  <h2>Decision</h2>
-  <p>{{ o.decision }}</p>
-  <p class="tiny">Decided {{ o.decided_at|date:"d M Y H:i" }}</p>
-</div>
-{% endif %}
 {% endblock %}

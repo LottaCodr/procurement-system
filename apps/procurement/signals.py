@@ -12,7 +12,6 @@ from django.dispatch import receiver
 from ledger import services as ledger
 from procurement.models import (
     AcceptanceCertificate,
-    Award,
     Bid,
     Contract,
     Objection,

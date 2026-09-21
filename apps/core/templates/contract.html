@@ -1,30 +1,116 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Contract {{ c.reference }}{% endblock %}
+{% block title %}Contract {{ c.reference }} — {{ c.award.bid.supplier.legal_name }}{% endblock %}
+{% block description %}Contract {{ c.reference }}: {{ c.award.tender.title }}. Value {{ c.value|naira }}, signed {{ c.signed_at|shortdate }}, with variations, payment certifications and performance record.{% endblock %}
+
 {% block content %}
-<p class="tiny"><a href="/tenders/{{ c.award.tender.ocid }}/">{{ c.award.tender.ocid }}</a> &rarr; contract</p>
-<h1>{{ c.award.tender.title }}</h1>
-<p class="muted">{{ c.reference }} &middot; {{ c.award.bid.supplier.legal_name }} &middot; {{ c.status|status_tag }}</p>
-{% if variation_high %}<div class="badbox"><strong>Variation alert.</strong> This contract has grown by {{ c.variation_pct }}% beyond its signed value. Anything above 10% is published with its reasons and triggers automatic Bureau review.</div>{% endif %}
-<div class="grid c4">
-  <div class="kpi"><b>{{ c.value|naira }}</b><span>signed value</span></div>
-  <div class="kpi"><b>{{ c.variation_pct }}%</b><span>post-signature growth</span></div>
-  <div class="kpi"><b>{{ c.duration_days }}</b><span>days to complete (from {{ c.signed_at|shortdate }})</span></div>
-  <div class="kpi"><b>{{ c.advance_pct }}%</b><span>advance paid &middot; {{ c.perf_guarantee_pct }}% guarantee held</span></div>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/contracts/">Contracts</a></li>
+  <li><span aria-current="page">{{ c.reference }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ c.award.tender.agency.name }}</p>
+  <h1>{{ c.award.tender.title }}</h1>
+  <div class="cluster">
+    {{ c.status|status_tag }}
+    <span class="tag tag--plain">contract {{ c.reference }}</span>
+    {% if variation_high %}<span class="tag tag--flag">variations above 10%</span>{% endif %}
+  </div>
+</header>
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="terms-h">
+      <h2 id="terms-h">Contract terms</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Supplier</dt>
+          <dd><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a>
+            <span class="tiny">{{ c.award.bid.supplier.rc_number }}</span></dd>
+          <dt>Value</dt>
+          <dd>{{ c.value|naira_exact }}
+            <span class="tiny">Awarded at {{ c.award.amount|naira }}; the difference is variation, itemised
+            below.</span></dd>
+          <dt>Signed</dt><dd>{{ c.signed_at|datetime_wat }}</dd>
+          <dt>Duration</dt><dd>{{ c.duration_days }} days</dd>
+          <dt>Location</dt><dd>{{ c.location|default:"—" }}</dd>
+          <dt>Advance payment</dt><dd>{{ c.advance_pct|pct }} of contract value</dd>
+          <dt>Performance guarantee</dt><dd>{{ c.perf_guarantee_pct|pct }} of contract value</dd>
+          <dt>Variations</dt>
+          <dd>{{ c.variation_pct|pct }}
+            {% if variation_high %}<span class="tag tag--flag">above the 10% attention line</span>{% endif %}</dd>
+          {% if c.deliverables %}<dt>Deliverables</dt><dd>{{ c.deliverables }}</dd>{% endif %}
+        </dl>
+      </div>
+    </section>
+
+    <section aria-labelledby="money-h">
+      <h2 id="money-h">What has been accepted and paid</h2>
+      <p class="tiny">The payment lock: no platform record, no payment. An acceptance certificate must
+      precede certification, and certification must precede treasury release.</p>
+      <div class="grid grid--2">
+        <div class="card">
+          <h3>Acceptance certificates</h3>
+          {% if acceptances %}
+            <ul>
+              {% for a in acceptances %}
+                <li><strong>{{ a.ref|default:"Acceptance" }}</strong> — {{ a.value|naira }},
+                  inspected {{ a.inspected_at|shortdate }}
+                  {% if a.certified_by %}by {{ a.certified_by.get_full_name|default:a.certified_by.username }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">Nothing has been accepted yet.</p>
+          {% endif %}
+        </div>
+        <div class="card">
+          <h3>Payment certifications</h3>
+          {% if certifications %}
+            <ul>
+              {% for p in certifications %}
+                <li><strong>{{ p.reference }}</strong> — {{ p.amount|naira }}, certified
+                  {{ p.certified_at|shortdate }}
+                  {% if p.treasury_ref %}<span class="tiny">treasury ref {{ p.treasury_ref }}</span>{% endif %}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No payment has been certified against this contract.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="events-h">
+      <h2 id="events-h">Contract history</h2>
+      {% if events %}
+        <ol class="timeline">
+          {% for e in events %}
+            <li data-state="done">
+              <span class="timeline__label">{{ e.kind|default:"Event" }}
+                {% if e.amount %} — {{ e.amount|naira }}{% endif %}</span>
+              <span class="timeline__meta">{{ e.occurred_at|datetime_wat }}{% if e.note %} · {{ e.note }}{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="muted">No contract events have been published yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside aria-label="Contract navigation">
+    <div class="card">
+      <h2>This contract</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/{{ c.award.tender.ocid }}/">The tender that produced it</a></li>
+        <li><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">Supplier profile and performance</a></li>
+        <li><a href="/tenders/contracts/{{ c.reference }}/milestones/">Milestones</a></li>
+        <li><a href="/tenders/contracts/{{ c.reference }}/variations/">Variation history</a></li>
+        <li><a href="/tenders/contracts/{{ c.reference }}/workspace/">Delivery workspace</a></li>
+        <li><a href="/tenders/defects/">Defects liability</a></li>
+      </ul>
+    </div>
+  </aside>
 </div>
-{% if c.location %}<div class="card"><h3>Where the work is</h3><p>{{ c.location }}</p>{% if c.deliverables %}<p class="tiny"><strong>Deliverables:</strong> {{ c.deliverables }}</p>{% endif %}</div>{% endif %}
-<h2>Implementation record</h2>
-{% if events %}<table><thead><tr><th>Date</th><th>Event</th><th class="num">Amount</th><th>Note</th></tr></thead><tbody>
-{% for e in events %}<tr><td class="muted">{{ e.occurred_at|shortdate }}</td><td>{{ e.kind }}</td><td class="num">{{ e.amount|naira }}</td><td>{{ e.note }}</td></tr>{% endfor %}
-</tbody></table>{% else %}<div class="empty">No milestones recorded yet.</div>{% endif %}
-<h2>Acceptance and payment</h2>
-<p class="tiny">Payment cannot be certified without a named officer&rsquo;s acceptance certificate. That gate is the difference between a portal and a register of intent.</p>
-<table><thead><tr><th>Acceptance</th><th>Certified by</th><th>Value</th><th>Payment certification</th><th>Treasury ref</th></tr></thead><tbody>
-{% for x in acceptances %}<tr><td>{{ x.ref }}</td><td>{{ x.certified_by.get_full_name|default:x.certified_by.username }}</td><td class="num">{{ x.value|naira }}</td>
-<td>{% for p in c.certifications.all %}{% if p.acceptance_id == x.id %}{{ p.reference }} ({{ p.certified_at|shortdate }}){% endif %}{% endfor %}{% if not c.certifications.all %}<span class="muted">none</span>{% endif %}</td>
-<td class="muted">{% for p in c.certifications.all %}{{ p.treasury_ref }}{% endfor %}</td></tr>{% endfor %}
-{% if not acceptances %}<tr><td colspan="5" class="muted">Nothing accepted yet &mdash; nothing is payable.</td></tr>{% endif %}
-</tbody></table>
-<p><a href="/tenders/contracts/{{ c.reference }}/workspace/" class="btn primary">Open contract workspace &rarr;</a>
-<a href="/tenders/contracts/{{ c.reference }}/milestones/" class="btn">Milestones</a>
-<a href="/tenders/contracts/{{ c.reference }}/variations/" class="btn">Variations</a></p>
 {% endblock %}

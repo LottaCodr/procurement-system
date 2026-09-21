@@ -1,0 +1,89 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ po.reference }} — purchase order{% endblock %}
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/purchase-orders/">Purchase orders</a></li>
+  <li><span aria-current="page">{{ po.reference }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ po.agency.name }} · raised {{ po.created_at|datetime_wat }} by
+    {{ po.created_by.get_full_name|default:po.created_by.username }}</p>
+  <h1>{{ po.title }}</h1>
+  <div class="cluster">
+    {{ po.status|status_tag }}
+    <span class="tag tag--plain">{{ po.category|capfirst }}</span>
+    <span class="tag tag--plain">{{ po.quantity|floatformat:"-3" }} {{ po.unit }}</span>
+  </div>
+</header>
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="po-terms">
+      <h2 id="po-terms">The order</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Specification</dt><dd>{{ po.specification }}</dd>
+          <dt>Quantity</dt><dd>{{ po.quantity|floatformat:"-3" }} {{ po.unit }}</dd>
+          <dt>Budget line</dt><dd>{{ po.budget_line.fy }} · {{ po.budget_line.project_code }} — {{ po.budget_line.description }}
+            <span class="tiny">{{ po.budget_line.amount|naira }} appropriated, {{ po.budget_line.available|naira }} still available
+            at the time of the order</span></dd>
+          <dt>Quote deadline</dt><dd>{{ po.deadline|datetime_wat }}</dd>
+          {% if po.awarded_supplier %}
+            <dt>Awarded to</dt><dd>{{ po.awarded_supplier.legal_name }}
+              {% if po.awarded_unit_price %}at {{ po.awarded_unit_price|naira_exact }} per {{ po.unit }}
+              <span class="tiny">order value {{ po.awarded_unit_price|floatformat:2 }} × {{ po.quantity|floatformat:"-3" }}
+              — recompute it yourself rather than trusting a total</span>{% endif %}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </section>
+
+    <section aria-labelledby="po-quotes">
+      <h2 id="po-quotes">Quotes received ({{ quotes|length }})</h2>
+      {% if quotes %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Quotes, scrollable">
+          <table class="data">
+            <caption>{{ quotes|length }} quote{{ quotes|length|pluralize }} against this order. The
+            {{ min_quotes }}-quote minimum exists so that a routine purchase still discovers a price.</caption>
+            <thead><tr><th scope="col">Supplier</th><th scope="col" class="num">Unit price</th><th scope="col" class="num">Lead time</th><th scope="col">Received</th><th scope="col">Rank</th></tr></thead>
+            <tbody>
+              {% for q in quotes %}
+                <tr>
+                  <th scope="row">{{ q.supplier.legal_name }}<span class="tiny">{{ q.supplier.rc_number }}</span></th>
+                  <td class="num">{{ q.unit_price|naira_exact }}</td>
+                  <td class="num">{{ q.lead_time_days }} days</td>
+                  <td>{{ q.submitted_at|shortdate }}</td>
+                  <td>{% if q.is_l1 %}<span class="tag tag--open">L1 — lowest</span>{% else %}rank {{ forloop.counter }}{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if quotes|length < min_quotes %}
+          <div class="callout callout--warn">
+            <span class="callout__title">Fewer than {{ min_quotes }} quotes</span>
+            <p>This order has {{ quotes|length }} quote{{ quotes|length|pluralize }}. The platform records
+            that as a shortfall rather than hiding it, and an order cannot be awarded on this basis without
+            a written exception.</p>
+          </div>
+        {% endif %}
+      {% else %}
+        <p class="muted">No quotes have been received yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside aria-label="Order navigation">
+    <div class="card">
+      <h2>Related</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/catalogue/?q={{ po.title|urlencode }}">Compare catalogue prices</a></li>
+        <li><a href="/tenders/mdas/{{ po.agency.code }}/">{{ po.agency.code }} activity</a></li>
+        <li><a href="/api/v1/stats">Register totals</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

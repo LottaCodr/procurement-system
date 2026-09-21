@@ -1,0 +1,86 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ item.name }} — quoted prices{% endblock %}
+{% block description %}{{ item.name }} ({{ item.sku }}): every supplier quote for this item, cheapest first, and the purchase orders raised against it.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/catalogue/">Catalogue</a></li>
+  <li><span aria-current="page">{{ item.sku }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ item.category|capfirst }} · per {{ item.unit }} · SKU {{ item.sku }}</p>
+  <h1>{{ item.name }}</h1>
+  <p class="lede">{{ quote_count }} supplier{{ quote_count|pluralize }} quote{{ quote_count|pluralize }} this item.
+  {% if quote_count >= min_quotes %}That clears the {{ min_quotes }}-quote threshold, so an order can be placed at the lowest quoted price.
+  {% else %}That is below the {{ min_quotes }}-quote threshold, so the platform will not accept an order against it — a price with no competition behind it is not a market price.{% endif %}</p>
+</header>
+
+{% if item.description %}<p>{{ item.description }}</p>{% endif %}
+
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ cheapest.unit_price|naira_exact }}</span><span class="kpi__label">lowest quote, per {{ item.unit }}</span>
+    <span class="kpi__meta">{{ cheapest.supplier.legal_name }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ quote_count }}</span><span class="kpi__label">suppliers quoting</span>
+    <span class="kpi__meta">{% if quote_count >= min_quotes %}competitive{% else %}below the {{ min_quotes }}-quote rule{% endif %}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ cheapest.lead_time_days }}</span><span class="kpi__label">days lead time</span>
+    <span class="kpi__meta">from the cheapest supplier</span></div>
+  <div class="kpi"><span class="kpi__value">{{ item.tax_inclusive|yesno:"incl.,excl.," }}</span><span class="kpi__label">tax</span>
+    <span class="kpi__meta">quoted prices are shown as submitted</span></div>
+</div>
+
+<section aria-labelledby="quotes-h">
+  <h2 id="quotes-h">Quotes, cheapest first</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Supplier quotes, scrollable">
+    <table class="data">
+      <caption>Every active quote for {{ item.sku }}. The state must buy at the lowest quoted price; this
+      table is the evidence of what that price was on any given day.</caption>
+      <thead><tr><th scope="col">Supplier</th><th scope="col" class="num">Unit price</th><th scope="col" class="num">Lead time</th><th scope="col">Updated</th><th scope="col">Domicile</th></tr></thead>
+      <tbody>
+        {% for q in quotes %}
+          <tr>
+            <th scope="row">{{ q.supplier.legal_name }}
+              {% if q.pk == cheapest.pk %}<span class="tag tag--open">lowest</span>{% endif %}
+              {% if q.supplier.is_debarred %}<span class="tag tag--flag">debarred</span>{% endif %}
+              <span class="tiny">{{ q.supplier.rc_number }}</span>
+            </th>
+            <td class="num">{{ q.unit_price|naira_exact }}</td>
+            <td class="num">{{ q.lead_time_days }} days</td>
+            <td>{{ q.updated_at|shortdate }}</td>
+            <td>{{ q.supplier.lga|default:q.supplier.state|default:"—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if orders %}
+<section aria-labelledby="orders-h">
+  <h2 id="orders-h">Purchase orders raised for this item</h2>
+  <p>What the state actually paid, not just what it was quoted. A quote nobody buys at is a number; this
+  is the price that was spent.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Purchase orders, scrollable">
+    <table class="data">
+      <caption>Orders against this item, newest first.</caption>
+      <thead><tr><th scope="col">Reference</th><th scope="col">MDA</th><th scope="col">Supplier</th><th scope="col" class="num">Unit price</th><th scope="col">Status</th><th scope="col">Raised</th></tr></thead>
+      <tbody>
+        {% for o in orders %}
+          <tr>
+            <th scope="row"><a href="/tenders/purchase-orders/{{ o.pk }}/">{{ o.reference }}</a></th>
+            <td>{{ o.agency.code }}</td>
+            <td>{{ o.awarded_supplier.legal_name|default:"—" }}</td>
+            <td class="num">{% if o.awarded_unit_price %}{{ o.awarded_unit_price|naira_exact }}{% else %}—{% endif %}</td>
+            <td>{{ o.status|status_tag }}</td>
+            <td>{{ o.created_at|shortdate }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+  <p class="muted">No purchase order has been raised for this item yet.</p>
+{% endif %}
+{% endblock %}

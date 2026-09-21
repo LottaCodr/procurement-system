@@ -1,31 +1,132 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Award register &mdash; {{ PLATFORM_NAME }}{% endblock %}
+{% block title %}Award register — who won what, and why{% endblock %}
+{% block description %}Every award {{ STATE_NAME }} has published: the winning company, the amount, the reason for the decision and the difference against the published estimate.{% endblock %}
+
 {% block content %}
-<h1>Award register</h1>
-<p class="lead">{{ count }} awards published, {{ total|naira }} in value. This page is the answer to the question
-every citizen asks and almost no portal answers: <em>who got the contract, for how much, and why them.</em></p>
-<form class="filters" method="get" action="/tenders/awards/">
-  <label>Year<select name="year"><option value="">All years</option>
-    {% for y in years %}<option value="{{ y }}" {% if y|stringformat:"s" == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
-  <label>Agency<select name="agency"><option value="">All</option>
-    {% for a in agency_list %}<option value="{{ a.code }}" {% if a.code == agency %}selected{% endif %}>{{ a.code }}</option>{% endfor %}</select></label>
-  <button type="submit" style="font:inherit;padding:7px 14px;border:1px solid #0a7d3c;background:#0a7d3c;color:#fff;border-radius:6px">Apply</button>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Awards</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Award register</h1>
+  <p class="lede">{{ count }} award{{ count|pluralize }} published, {{ total|naira }} in total. This is the
+  page that answers the question almost no portal answers: <em>who got the contract, for how much, and why
+  them.</em></p>
+</header>
+
+<form class="filters" method="get" action="/tenders/awards/" aria-labelledby="award-filters">
+  <h2 id="award-filters" class="visually-hidden">Filter awards</h2>
+  <div class="filters__grid">
+    <div class="field">
+      <label class="field__label" for="a-year">Financial year of the process</label>
+      <select id="a-year" name="year">
+        <option value="">All years</option>
+        {% for y in years %}<option value="{{ y }}" {% if y|stringformat:"s" == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="a-agency">Agency</label>
+      <select id="a-agency" name="agency">
+        <option value="">All agencies</option>
+        {% for a in agency_list %}<option value="{{ a.code }}" {% if a.code == agency %}selected{% endif %}>{{ a.code }} — {{ a.name|truncatewords:5 }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="a-method">Method</label>
+      <select id="a-method" name="method">
+        <option value="">Any method</option>
+        {% for code, label in method_choices %}<option value="{{ code }}" {% if method == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="filters__actions">
+    <button class="btn" type="submit">Apply filters</button>
+    <a class="btn btn--quiet" href="/tenders/awards/">Clear all</a>
+  </div>
 </form>
+
 {% if rows %}
-<table><thead><tr><th>Published</th><th>Process</th><th>Agency</th><th>Won by</th><th class="num">Award</th><th class="num">vs est.</th><th>Method</th><th>Flags</th></tr></thead><tbody>
-{% for a in rows %}<tr>
-  <td class="muted">{{ a.published_at|shortdate }}</td>
-  <td><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a><div class="tiny">{{ a.tender.ocid }}</div></td>
-  <td class="muted">{{ a.tender.agency.code }}</td>
-  <td>{{ a.bid.supplier.legal_name }}<div class="tiny">{{ a.bid.supplier.rc_number }} &middot; {{ a.bid.supplier.lga|default:a.bid.supplier.state }}</div></td>
-  <td class="num">{{ a.amount|naira }}</td>
-  <td class="num">{% if a.tender.est_value %}{% widthratio a.amount a.tender.est_value 100 %}%{% else %}&mdash;{% endif %}</td>
-  <td><span class="tag">{{ a.tender.method }}</span></td>
-  <td>{% for f in a.tender.red_flag_codes %}<span class="tag flag">{{ f }}</span> {% endfor %}</td>
-</tr>{% endfor %}</tbody></table>
-<p class="tiny">Also available as <a href="/api/v1/awards?format=json">JSON</a>, <a href="/api/v1/bulk">a yearly zip</a>, or <a href="/api/v1/releases">a continuous OCDS feed</a>.</p>
+  {% if mix %}
+  <section aria-labelledby="mix-h">
+    <h2 id="mix-h">How this money was awarded</h2>
+    <div class="card">
+      <table class="data data--compact">
+        <caption>Share of awarded value by procurement method, for the awards currently in view.</caption>
+        <thead><tr><th scope="col">Method</th><th scope="col" class="num">Awards</th><th scope="col" class="num">Value</th><th scope="col">Share of value</th></tr></thead>
+        <tbody>
+        {% for m in mix %}
+          <tr>
+            <th scope="row">{{ m.tender__method }}</th>
+            <td class="num">{{ m.n }}</td>
+            <td class="num">{{ m.value|naira }}</td>
+            <td>
+              <span class="cluster">
+                {% bar m.pct %}<span class="num">{{ m.pct|pct }}</span>
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="tiny">Direct procurement — buying without competition — is the share worth watching.
+      Every award below says whether it went through a competitive method.</p>
+    </div>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="award-rows">
+    <h2 id="award-rows">Awards</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Award register, scrollable">
+      <table class="data data--sticky-first">
+        <caption>Awards, most recently published first. “vs estimate” compares the contract price with the
+        estimate published before bids were invited.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Published</th>
+            <th scope="col">Process</th>
+            <th scope="col" class="hide-xs">Agency</th>
+            <th scope="col">Won by</th>
+            <th scope="col" class="num">Award</th>
+            <th scope="col" class="num hide-xs">vs estimate</th>
+            <th scope="col" class="hide-xs">Method</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for a in rows %}
+          <tr>
+            <td>{{ a.published_at|shortdate }}</td>
+            <th scope="row">
+              <a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a>
+              <span class="tiny">{{ a.tender.ocid }}{% if a.notice_ref %} · {{ a.notice_ref }}{% endif %}</span>
+            </th>
+            <td class="hide-xs">{{ a.tender.agency.code }}</td>
+            <td>{{ a.bid.supplier.legal_name }}
+              <span class="tiny">{{ a.bid.supplier.rc_number }}{% if a.bid.supplier.lga %} · {{ a.bid.supplier.lga }}{% endif %}</span></td>
+            <td class="num">{{ a.amount|naira }}</td>
+            <td class="num hide-xs">{% if a.tender.est_value %}{% widthratio a.amount a.tender.est_value 100 %}%{% else %}—{% endif %}</td>
+            <td class="hide-xs">{{ a.tender.get_method_display }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">
+      <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+      <span>Showing the {{ rows|length }} most recent of {{ count }}.
+        <a href="/api/v1/awards">All as JSON</a> ·
+        <a href="/api/v1/bulk?year={{ YEAR }}">Bulk zip</a> ·
+        <a href="/tenders/feed/awards/">RSS</a></span>
+    </p>
+  </section>
 {% else %}
-<div class="empty"><strong>No awards are published for this filter.</strong><br>
-<span class="tiny">This register shows nothing rather than an unbacked headline number. Awards appear here within 48 hours of a notice being signed.</span></div>
+  <div class="empty">
+    <h3>No award matches those filters</h3>
+    <p>The register shows nothing rather than an unbacked headline number. Awards appear here within 48
+    hours of a notice being signed.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/awards/">Clear the filters</a>
+      <a class="btn btn--secondary" href="/tenders/">Browse the tender register</a>
+    </div>
+  </div>
 {% endif %}
 {% endblock %}

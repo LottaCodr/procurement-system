@@ -19,7 +19,7 @@ TRANSLATIONS = {
         "nav_logout": "Logout",
         "nav_status": "System Status",
         "nav_help": "Help",
-        
+
         # Common actions
         "action_search": "Search",
         "action_filter": "Filter",
@@ -32,7 +32,7 @@ TRANSLATIONS = {
         "action_print": "Print",
         "action_view_details": "View Details",
         "action_bid_now": "Bid Now",
-        
+
         # Tender-related
         "tender_title": "Tender Title",
         "tender_reference": "Reference Number",
@@ -46,14 +46,14 @@ TRANSLATIONS = {
         "tender_description": "Description",
         "tender_documents": "Documents",
         "tender_requirements": "Requirements",
-        
+
         # Status values
         "status_open": "Open",
         "status_closed": "Closed",
         "status_awarded": "Awarded",
         "status_cancelled": "Cancelled",
         "status_evaluating": "Under Evaluation",
-        
+
         # Bid-related
         "bid_submit": "Submit Bid",
         "bid_amount": "Bid Amount",
@@ -64,7 +64,7 @@ TRANSLATIONS = {
         "bid_receipt_number": "Receipt Number",
         "bid_commitment_hash": "Commitment Hash",
         "bid_submitted_at": "Submitted At",
-        
+
         # Supplier registration
         "register_title": "Supplier Registration",
         "register_company_name": "Company Name",
@@ -77,13 +77,13 @@ TRANSLATIONS = {
         "register_experience": "Years of Experience",
         "register_step": "Step",
         "register_of": "of",
-        
+
         # Awards
         "award_supplier": "Winning Supplier",
         "award_amount": "Award Amount",
         "award_date": "Award Date",
         "award_reason": "Reason for Award",
-        
+
         # Messages
         "msg_no_results": "No results found",
         "msg_loading": "Loading...",
@@ -92,19 +92,19 @@ TRANSLATIONS = {
         "msg_required_field": "This field is required",
         "msg_invalid_email": "Please enter a valid email address",
         "msg_password_mismatch": "Passwords do not match",
-        
+
         # Footer
         "footer_copyright": "© 2025 Taraba State Government",
         "footer_privacy": "Privacy Policy",
         "footer_terms": "Terms of Use",
         "footer_contact": "Contact Us",
         "footer_accessibility": "Accessibility",
-        
+
         # Accessibility
         "a11y_skip_to_content": "Skip to main content",
         "a11y_language_selector": "Select language",
     },
-    
+
     "ha": {
         # Navigation
         "nav_home": "Gida",
@@ -117,7 +117,7 @@ TRANSLATIONS = {
         "nav_logout": "Fita",
         "nav_status": "Matsayin Tsarin",
         "nav_help": "Taimako",
-        
+
         # Common actions
         "action_search": "Nema",
         "action_filter": "Tace",
@@ -130,7 +130,7 @@ TRANSLATIONS = {
         "action_print": "Buga",
         "action_view_details": "Duba Cikakken Bayani",
         "action_bid_now": "Yi Tayin Yanzu",
-        
+
         # Tender-related
         "tender_title": "Taken Tayin Saye",
         "tender_reference": "Lambar Magana",
@@ -144,14 +144,14 @@ TRANSLATIONS = {
         "tender_description": "Bayani",
         "tender_documents": "Takaddun",
         "tender_requirements": "Buƙatu",
-        
+
         # Status values
         "status_open": "A Buɗe",
         "status_closed": "An Rufe",
         "status_awarded": "An Bayar",
         "status_cancelled": "An Soke",
         "status_evaluating": "Ana Kimantawa",
-        
+
         # Bid-related
         "bid_submit": "Aika Tayi",
         "bid_amount": "Adadin Tayi",
@@ -162,7 +162,7 @@ TRANSLATIONS = {
         "bid_receipt_number": "Lambar Rasidi",
         "bid_commitment_hash": "Hashin Alƙawari",
         "bid_submitted_at": "Lokacin Aikawa",
-        
+
         # Supplier registration
         "register_title": "Rajistar Mai Samarwa",
         "register_company_name": "Sunan Kamfani",
@@ -175,13 +175,13 @@ TRANSLATIONS = {
         "register_experience": "Shekarun Gogewa",
         "register_step": "Mataki",
         "register_of": "na",
-        
+
         # Awards
         "award_supplier": "Mai Samarwa Mai Nasara",
         "award_amount": "Adadin Kyauta",
         "award_date": "Ranar Bayarwa",
         "award_reason": "Dalilin Bayarwa",
-        
+
         # Messages
         "msg_no_results": "Ba a sami sakamako ba",
         "msg_loading": "Ana lodawa...",
@@ -190,14 +190,14 @@ TRANSLATIONS = {
         "msg_required_field": "Wannan filin yana da mahimmanci",
         "msg_invalid_email": "Da fatan za a shigar da ingantaccen adireshin imel",
         "msg_password_mismatch": "Kalmar sirri ba ta dace ba",
-        
+
         # Footer
         "footer_copyright": "© 2025 Gwamnatin Jihar Taraba",
         "footer_privacy": "Manufar Sirri",
         "footer_terms": "Sharuɗɗan Amfani",
         "footer_contact": "Tuntuɓe Mu",
         "footer_accessibility": "Samun Dama",
-        
+
         # Accessibility
         "a11y_skip_to_content": "Tsallake zuwa babban abun ciki",
         "a11y_language_selector": "Zaɓi harshe",
@@ -207,12 +207,12 @@ TRANSLATIONS = {
 
 def get_translation(key: str, language: str = "en") -> str:
     """Get translation for a key in the specified language.
-    
+
     Falls back to English if translation not found.
     """
     if language not in TRANSLATIONS:
         language = "en"
-    
+
     return TRANSLATIONS[language].get(key, TRANSLATIONS["en"].get(key, key))
 
 
@@ -227,14 +227,14 @@ def validate_translations():
     """Validate that all English keys have Hausa translations."""
     en_keys = set(TRANSLATIONS["en"].keys())
     ha_keys = set(TRANSLATIONS["ha"].keys())
-    
+
     missing_in_hausa = en_keys - ha_keys
     extra_in_hausa = ha_keys - en_keys
-    
+
     if missing_in_hausa:
         raise ValueError(f"Missing Hausa translations for: {missing_in_hausa}")
-    
+
     if extra_in_hausa:
         print(f"Warning: Extra Hausa keys not in English: {extra_in_hausa}")
-    
+
     return True

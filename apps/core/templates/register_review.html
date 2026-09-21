@@ -1,59 +1,82 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load core_tags %}
 {% block title %}Registration review queue{% endblock %}
+{% block description %}Bureau review queue for supplier registrations: what is waiting, for how long, and what the reviewer decided.{% endblock %}
+
 {% block content %}
-<div class="card">
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/register/">Supplier registration</a></li>
+  <li><span aria-current="page">Review queue</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
   <h1>Registration review queue</h1>
-  <div class="tabs">
+  <p class="lede">Every registration that has been submitted and not yet decided. The queue is public
+  because the delay between a company submitting and a reviewer acting is the part of registration that
+  nobody usually measures: a queue that sits for a month is a queue that excluded those bidders from every
+  tender advertised during that month.</p>
+  <div class="cluster">
+    <span class="tag tag--plain">{{ drafts|length }} in this view</span>
+    <span class="tag {% if counts.SUBMITTED %}tag--warn{% else %}tag--open{% endif %}">{{ counts.SUBMITTED|default:0 }} awaiting first review</span>
+  </div>
+</header>
+
+<nav aria-label="Filter the queue by status">
+  <ul class="pillnav">
     {% for s in statuses %}
-    <a href="?status={{ s }}" class="tab {% if status == s %}active{% endif %}">{{ s }} ({{ counts|get_item:s }})</a>
+      <li><a href="/tenders/register/review/?status={{ s }}" {% if status == s %}aria-current="page"{% endif %}>
+        {{ s|status_tag }} <span class="tiny">{{ counts|get_item:s|default:0 }}</span></a></li>
     {% endfor %}
-  </div>
-</div>
+  </ul>
+</nav>
 
-{% for d in drafts %}
-<div class="card">
-  <div class="grid-2">
-    <div>
-      <h3>{{ d.company_name|default:"(unnamed)" }}</h3>
-      <dl>
-        <dt>RC</dt><dd>{{ d.rc_number|default:"—" }}</dd>
-        <dt>TIN</dt><dd>{{ d.tin|default:"—" }}</dd>
-        <dt>Category</dt><dd>{{ d.get_category_display|default:"—" }}</dd>
-        <dt>Contact</dt><dd>{{ d.full_name|default:"—" }} — {{ d.email|default:"—" }}</dd>
-        <dt>Phone</dt><dd>{{ d.phone|default:"—" }}</dd>
-        <dt>Step</dt><dd>{{ d.current_step }}/6</dd>
-        <dt>Submitted</dt><dd>{{ d.submitted_at|date:"d M Y H:i"|default:"—" }}</dd>
-      </dl>
-    </div>
-    <div>
-      <h4>Documents</h4>
-      {% for doc in d.documents.all %}
-      <p>{{ doc.get_kind_display }}: <span class="badge">{{ doc.verification_status }}</span>
-        {% if doc.expiry_date %}(expires {{ doc.expiry_date|date:"d M Y" }}){% endif %}
-      </p>
-      {% empty %}
-      <p class="muted">No documents uploaded.</p>
-      {% endfor %}
-
-      <h4>Owners ({{ d.owners.count }})</h4>
-      {% for o in d.owners.all %}
-      <p>{{ o.owner_name }} — {{ o.pct }}% {% if o.is_pep %}<span class="badge bad">PEP</span>{% endif %}</p>
-      {% empty %}
-      <p class="muted">None declared.</p>
-      {% endfor %}
+{% if drafts %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Registration review queue, scrollable">
+    <table class="data data--sticky-first">
+      <caption>Registrations with status {{ status }}. Company details are shown as submitted; nothing here
+      is visible in the public supplier register until it is approved.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Company</th>
+          <th scope="col" class="hide-xs">RC number</th>
+          <th scope="col" class="hide-xs">TIN</th>
+          <th scope="col">Submitted</th>
+          <th scope="col">Waiting</th>
+          <th scope="col" class="hide-xs">Documents</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in drafts %}
+          <tr>
+            <th scope="row">{{ d.company_name|default:"(no name entered)" }}
+              <span class="tiny">{{ d.lga }}{% if d.lga and d.state %}, {% endif %}{{ d.state }}</span></th>
+            <td class="hide-xs">{{ d.rc_number|default:"—" }}</td>
+            <td class="hide-xs">{{ d.tin|mask_tax }}</td>
+            <td>{{ d.submitted_at|shortdate }}</td>
+            <td>{{ d.submitted_at|relative }}
+              {% if d.submitted_at and d.submitted_at|timesince > "14 days" %}{% endif %}</td>
+            <td class="hide-xs">{{ d.documents.count }} attached</td>
+            <td>{{ d.status|status_tag }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Reviewing is an authenticated action. This page shows the queue to anyone; it does not let anyone
+    change it.</span>
+  </p>
+{% else %}
+  <div class="empty">
+    <h3>Nothing is waiting in this queue</h3>
+    <p>No registration currently has the status {{ status }}. The queue being empty is reported as empty
+    rather than hidden behind a spinner.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/register/review/">Show all statuses</a>
+      <a class="btn btn--secondary" href="/tenders/suppliers/">Approved suppliers</a>
     </div>
   </div>
-  {% if d.status == "SUBMITTED" or d.status == "VERIFYING" %}
-  <div class="form-actions">
-    <button class="btn primary" data-action="approve" data-token="{{ d.draft_token }}">Approve</button>
-    <button class="btn bad" data-action="reject" data-token="{{ d.draft_token }}">Reject</button>
-  </div>
-  {% endif %}
-  {% if d.review_notes %}
-  <p class="muted">Review notes: {{ d.review_notes }}</p>
-  {% endif %}
-</div>
-{% empty %}
-<div class="card"><p class="muted">No registrations in "{{ status }}" status.</p></div>
-{% endfor %}
+{% endif %}
 {% endblock %}

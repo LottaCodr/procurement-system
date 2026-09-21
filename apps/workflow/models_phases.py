@@ -59,13 +59,19 @@ class SupplierPerformanceRating(models.Model):
     @staticmethod
     def compute(contract) -> dict:
         """Compute performance scores from contract events.
-        Timeliness: on-time delivery = 100, late by X% of duration = proportional deduction.
-        Quality: number of snags / rework events; 0 = 100, each snag = -10.
-        Variation: 0% growth = 100, each 1% = -5, floor at 0."""
-        from procurement.models import ContractEvent
+
+        Timeliness: 100 less 10 for each milestone recorded with a negative amount
+        (the ledger's record of a missed or reduced milestone), floored at 0.
+        Quality: 100 less 10 per snag event. Variation: 100 less 5 for each
+        percentage point of growth, floored at 0.
+
+        The deductions are flat rather than proportional to how late a milestone
+        was. `ContractMilestone.days_late` is published separately, so lateness
+        can be judged on the record itself instead of through a composite score
+        the supplier cannot see inside.
+        """
 
         events = list(contract.events.all())
-        duration = contract.duration_days or 1
 
         # Timeliness
         milestones = [e for e in events if e.kind == "MILESTONE"]

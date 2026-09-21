@@ -1,138 +1,163 @@
-{% extends "base.html" %}
-{% block title %}{{ s.legal_name }} — Supplier Profile{% endblock %}
-{% block content %}
-<nav class="crumb"><a href="/tenders/suppliers/">Suppliers</a> &rsaquo; {{ s.legal_name }}</nav>
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ p.legal_name }} — supplier record{% endblock %}
+{% block description %}{{ p.legal_name }} (RC {{ p.rc_number }}): verification status, awards won from {{ STATE_NAME }}, performance record and any debarment.{% endblock %}
 
-<div class="card">
-  <h1>{{ s.legal_name }}</h1>
-  <div class="grid-2">
-    <div>
-      <dl>
-        <dt>RC Number</dt><dd>{{ s.rc_number|default:"—" }}</dd>
-        <dt>TIN</dt><dd>{{ s.tin|default:"—" }}</dd>
-        <dt>PenCom</dt><dd>{{ s.pencom|default:"—" }}</dd>
-        <dt>Category</dt><dd>{{ s.get_category_display }}</dd>
-        <dt>Scope</dt><dd>{{ s.get_scope_display }}</dd>
-        <dt>State / LGA</dt><dd>{{ s.state }}{{ s.lga|yesno:" / ," }}{{ s.lga }}</dd>
-        <dt>Year incorporated</dt><dd>{{ s.year_incorporated|default:"—" }}</dd>
-        <dt>Email</dt><dd><a href="mailto:{{ s.email }}">{{ s.email }}</a></dd>
-        <dt>Phone</dt><dd>{{ s.phone }}</dd>
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/suppliers/">Suppliers</a></li>
+  <li><span aria-current="page">{{ p.legal_name }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>{{ p.legal_name }}</h1>
+  <div class="cluster">
+    <span class="tag tag--plain">RC {{ p.rc_number }}</span>
+    <span class="tag tag--plain">{{ p.get_category_display }}</span>
+    {% if p.is_debarred %}<span class="tag tag--flag">debarred{% if p.debarred_to %} until {{ p.debarred_to|shortdate }}{% endif %}</span>
+    {% else %}<span class="tag tag--open">not debarred</span>{% endif %}
+    {% if p.pep_flag %}<span class="tag tag--warn">politically exposed ownership declared</span>{% endif %}
+  </div>
+  <p class="lede">This page answers the question every oversight portal should answer but few do:
+  <strong>how much public money has this firm been given, for what, and did it deliver?</strong></p>
+</header>
+
+{% if p.is_debarred %}
+  <div class="callout callout--danger" role="alert">
+    <span class="callout__title">This supplier is debarred from public procurement</span>
+    <p>From {{ p.debarred_from|shortdate }}{% if p.debarred_to %} to {{ p.debarred_to|shortdate }}{% endif %}.
+    Reason: {{ p.debarment_reason|default:"— stated in the debarment register" }}. Bids from a debarred firm
+    are refused by the platform, and the attempt is logged.</p>
+  </div>
+{% endif %}
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="identity-h">
+      <h2 id="identity-h">Who this is</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Legal name</dt><dd>{{ p.legal_name }}</dd>
+          <dt>RC number</dt><dd>{{ p.rc_number }}</dd>
+          <dt>Tax identification</dt><dd>{{ p.tin|mask_tax }}</dd>
+          <dt>Domicile</dt><dd>{{ p.lga|default:"—" }}, {{ p.state|default:STATE_NAME }}
+            {% if p.scope == "LOCAL" %}<span class="tag tag--plain">Taraba-domiciled</span>{% endif %}</dd>
+          <dt>Category</dt><dd>{{ p.get_category_display }}</dd>
+          {% if p.ownership %}<dt>Ownership</dt><dd>{{ p.ownership }}</dd>{% endif %}
+          {% if p.contact_person %}<dt>Contact for official notices</dt><dd>{{ p.contact_person }}</dd>{% endif %}
+        </dl>
+        <p class="tiny">Tax numbers are masked because this register exists to check public spending, not to
+        hand out identity data.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="verif-h">
+      <h2 id="verif-h">Verification assertions</h2>
+      <p class="tiny">Identity verification is not a boolean invented by a web form. Every claim below names
+      the check, the authority, when it was done and when it lapses.</p>
+      {% if p.verifications.all %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Verification assertions, scrollable">
+          <table class="data">
+            <caption>Verification checks on file for this supplier.</caption>
+            <thead><tr><th scope="col">Check</th><th scope="col">Authority</th><th scope="col">Result</th><th scope="col">Checked</th><th scope="col">Expires</th></tr></thead>
+            <tbody>
+            {% for v in p.verifications.all %}
+              <tr>
+                <th scope="row">{{ v.get_kind_display }}</th>
+                <td>{{ v.authority|default:"—" }}</td>
+                <td>{{ v.status|status_tag }}</td>
+                <td>{{ v.verified_at|shortdate }}</td>
+                <td>{% if v.expires_at %}{{ v.expires_at|shortdate }}{% if v.is_expired %} <span class="tag tag--flag">lapsed</span>{% endif %}{% else %}no expiry{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="callout callout--warn">
+          <span class="callout__title">No verification is on file</span>
+          <p>The firm appears in the supplier register but no identity check has been recorded. Treat its
+          claims as unverified until this table is filled in.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="awards-h">
+      <h2 id="awards-h">Public money awarded to this firm</h2>
+      {% if awards %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Awards to this supplier, scrollable">
+          <table class="data">
+            <caption>{{ awards|length }} award{{ awards|length|pluralize }} in this register,
+              totalling {{ total_awarded|naira }}.</caption>
+            <thead><tr><th scope="col">Published</th><th scope="col">Process</th><th scope="col">Agency</th>
+              <th scope="col" class="num">Amount</th><th scope="col" class="hide-xs">vs estimate</th><th scope="col">Contract</th></tr></thead>
+            <tbody>
+            {% for a in awards %}
+              <tr>
+                <td>{{ a.published_at|shortdate }}</td>
+                <th scope="row"><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a></th>
+                <td>{{ a.tender.agency.code }}</td>
+                <td class="num">{{ a.amount|naira }}</td>
+                <td class="hide-xs">{% if a.tender.est_value %}{% widthratio a.amount a.tender.est_value 100 %}%{% else %}—{% endif %}</td>
+                <td>{% if a.contract %}<a href="/tenders/contracts/{{ a.contract.reference }}/">{{ a.contract.reference }}</a>{% else %}<span class="muted">not signed</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">This firm has not won an award in the register.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="bids-h">
+      <h2 id="bids-h">Bids submitted ({{ bids|length }})</h2>
+      {% if bids %}
+        <ul>
+          {% for b in bids %}
+            <li><a href="/tenders/{{ b.tender.ocid }}/">{{ b.tender.title }}</a> —
+              {{ b.tender.agency.code }} · {{ b.status|status_tag }}
+              <span class="tiny">submitted {{ b.submitted_at|shortdate }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="tiny">Losing bids are listed on purpose: a firm that bids repeatedly and never wins is a
+        pattern the state should be able to see, and so should the firm.</p>
+      {% else %}
+        <p class="muted">No bids recorded from this supplier.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside aria-label="Supplier summary">
+    <div class="card">
+      <h2>At a glance</h2>
+      <dl class="kv kv--stack">
+        <dt>Awards won</dt><dd>{{ awards|length }}</dd>
+        <dt>Value won</dt><dd>{{ total_awarded|naira }}</dd>
+        <dt>Performance</dt><dd>{% if p.performance_score %}{{ p.performance_score }} / 100{% else %}not yet assessed{% endif %}</dd>
+        <dt>Status</dt><dd>{% if p.is_debarred %}debarred{% else %}eligible to bid{% endif %}</dd>
       </dl>
     </div>
-    <div>
-      <h3>Verification status</h3>
-      {% if verifications %}
-      <table class="data">
-        <thead><tr><th>Credential</th><th>Status</th><th>Verified</th><th>Expires</th></tr></thead>
-        <tbody>
-        {% for kind, v in verifications.items %}
-        <tr>
-          <td>{{ v.get_kind_display }}</td>
-          <td><span class="badge {% if v.status == 'PASSED' %}ok{% elif v.status == 'FAILED' %}bad{% endif %}">{{ v.status }}</span></td>
-          <td>{{ v.verified_at|date:"d M Y"|default:"—" }}</td>
-          <td>{{ v.expires_at|date:"d M Y"|default:"—" }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <p class="muted">No verifications on record.</p>
-      {% endif %}
-
-      {% if is_debarred %}
-      <div class="alert bad">
-        <strong>Debarred</strong> from {{ s.debarred_from|date:"d M Y" }}
-        {% if s.debarred_to %} to {{ s.debarred_to|date:"d M Y" }}{% endif %}.
-        {{ s.debarment_reason }}
+    {% if performance_records %}
+      <div class="card">
+        <h2>Delivery scores</h2>
+        <ul>
+          {% for r in performance_records %}
+            <li>{{ r.contract.reference }} — <strong>{{ r.score }}</strong>
+              <span class="tiny">{{ r.recorded_at|shortdate }}</span></li>
+          {% endfor %}
+        </ul>
+        <p><a href="/tenders/suppliers/{{ p.pk }}/ratings/">Full ratings page</a></p>
       </div>
-      {% endif %}
+    {% endif %}
+    <div class="card">
+      <h2>Check something about this firm</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/?q={{ p.legal_name|urlencode }}">Search the register for this name</a></li>
+        <li><a href="/tenders/indicators/#c3">Supplier-pattern indicators</a></li>
+        <li><a href="/tenders/help/#objection">Report a concern about this supplier</a></li>
+      </ul>
     </div>
-  </div>
-</div>
-
-{% if s.bo_declared and s.owners.exists %}
-<div class="card">
-  <h2>Beneficial ownership (≥5%)</h2>
-  <table class="data">
-    <thead><tr><th>Owner</th><th>RC (if corporate)</th><th>Share %</th><th>PEP</th></tr></thead>
-    <tbody>
-    {% for o in s.owners.all %}
-    <tr>
-      <td>{{ o.owner_name }}</td>
-      <td>{{ o.owner_rc_number|default:"—" }}</td>
-      <td>{{ o.pct }}%</td>
-      <td>{{ o.is_pep|yesno:"Yes,No" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if ratings %}
-<div class="card">
-  <h2>Performance ratings</h2>
-  <p class="muted">Average composite score: <strong>{{ avg_composite|floatformat:1 }}/100</strong></p>
-  <table class="data">
-    <thead><tr><th>Contract</th><th>Grade</th><th>Timeliness</th><th>Quality</th><th>Variation</th><th>Composite</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for r in ratings %}
-    <tr>
-      <td><a href="/tenders/contracts/{{ r.contract.reference }}/">{{ r.contract.reference }}</a></td>
-      <td><span class="badge grade-{{ r.grade }}">{{ r.get_grade_display }}</span></td>
-      <td>{{ r.timeliness_score|floatformat:0 }}</td>
-      <td>{{ r.quality_score|floatformat:0 }}</td>
-      <td>{{ r.variation_score|floatformat:0 }}</td>
-      <td>{{ r.composite|floatformat:0 }}</td>
-      <td>{{ r.rated_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-<div class="card">
-  <h2>Awards won ({{ awards.count }})</h2>
-  {% if awards %}
-  <table class="data">
-    <thead><tr><th>OCID</th><th>Title</th><th>Agency</th><th>Amount</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for a in awards %}
-    <tr>
-      <td><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.ocid }}</a></td>
-      <td>{{ a.tender.title|truncatechars:60 }}</td>
-      <td>{{ a.tender.agency.code }}</td>
-      <td>₦{{ a.amount|floatformat:2 }}</td>
-      <td>{{ a.published_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted">No awards on record.</p>
-  {% endif %}
-</div>
-
-<div class="card">
-  <h2>Bids submitted ({{ bids.count }})</h2>
-  {% if bids %}
-  <table class="data">
-    <thead><tr><th>OCID</th><th>Title</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for b in bids %}
-    <tr>
-      <td><a href="/tenders/{{ b.tender.ocid }}/">{{ b.tender.ocid }}</a></td>
-      <td>{{ b.tender.title|truncatechars:60 }}</td>
-      <td>{% if b.amount %}₦{{ b.amount|floatformat:2 }}{% else %}—{% endif %}</td>
-      <td><span class="badge">{{ b.get_status_display }}</span></td>
-      <td>{{ b.submitted_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted">No bids submitted.</p>
-  {% endif %}
+  </aside>
 </div>
 {% endblock %}

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count
 
 INDICATOR_VERSION = "2026.1"
 
@@ -217,11 +217,15 @@ def evaluate_tender(tender, *, include_private: bool = True) -> list[dict]:
         criteria = list(tender.criteria.all())
         brand_indicators = ["brand", "model", "make", "manufacturer", "proprietary",
                            "certified by", "authorized by", "exclusive", "patented"]
+        # The scanned text is exactly the text published to bidders: the
+        # criterion name and its description, plus the tender description where
+        # technical specifications are carried. Scanning a field that exists
+        # only in the risk engine's imagination is how this indicator used to
+        # take the whole tender page down with an AttributeError.
+        tender_text = (tender.description or "").lower()
         for criterion in criteria:
-            desc_lower = (criterion.description or "").lower()
-            spec_lower = (criterion.specification or "").lower()
-            text = desc_lower + " " + spec_lower
-            
+            text = f"{criterion.name} {criterion.description} {tender_text}".lower()
+
             # Check for brand-specific language
             matches = [term for term in brand_indicators if term in text]
             if matches:
@@ -245,8 +249,7 @@ def evaluate_tender(tender, *, include_private: bool = True) -> list[dict]:
     # T11 cycle-time anomaly -------------------------------------------------
     # Check if tender went from published to awarded faster than legal minimum
     if tender.published_at and tender.awards.exists():
-        from datetime import timedelta
-        
+
         # Get legal minimum advertising days for this method
         min_days = {
             "NCB": 21,
@@ -255,7 +258,7 @@ def evaluate_tender(tender, *, include_private: bool = True) -> list[dict]:
             "SHOPPING": 3,
             "DIRECT": 0,
         }.get(tender.method, 14)
-        
+
         # Find earliest award date
         earliest_award = tender.awards.order_by("created_at").first()
         if earliest_award and earliest_award.created_at:
@@ -312,7 +315,7 @@ SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
 
 def agency_rate_flags(agency) -> list[dict]:
     """T05 / T07 / T12 are aggregate, not per-tender."""
-    from procurement.models import Bid, Tender
+    from procurement.models import Tender
 
     flags: list[dict] = []
     tenders = Tender.objects.filter(agency=agency).exclude(status="DRAFT")
@@ -351,7 +354,6 @@ def models_sum(qs):
 
 def losing_spin(window: int = 5) -> list[dict]:
     """T05: many bids, no awards. Private until reviewed."""
-    from procurement.models import Bid
     from procurement.models_party import Party
 
     out = []
@@ -363,30 +365,30 @@ def losing_spin(window: int = 5) -> list[dict]:
 
 def winner_rotation(agency=None, months: int = 12, min_tenders: int = 5) -> list[dict]:
     """T08: suspicious winner rotation among a fixed set of suppliers.
-    
+
     Detects when the same small group of suppliers takes turns winning
     contracts from the same agency, suggesting a bid-rigging cartel.
     """
-    from procurement.models import Tender, Award
+    from procurement.models import Tender
     from procurement.models_party import Party
     from django.utils import timezone
     from datetime import timedelta
-    
+
     cutoff = timezone.now() - timedelta(days=months * 30)
-    
+
     # Get tenders with awards in the period
     tenders_qs = Tender.objects.filter(
         published_at__gte=cutoff,
         awards__isnull=False,
     ).exclude(status="DRAFT")
-    
+
     if agency:
         tenders_qs = tenders_qs.filter(agency=agency)
-    
+
     # Group by agency and category
     from collections import defaultdict
     groups = defaultdict(list)
-    
+
     for tender in tenders_qs.select_related("agency"):
         for award in tender.awards.select_related("bid__supplier"):
             key = (tender.agency_id, tender.method)
@@ -396,31 +398,30 @@ def winner_rotation(agency=None, months: int = 12, min_tenders: int = 5) -> list
                 "supplier_id": award.bid.supplier_id,
                 "date": tender.published_at,
             })
-    
+
     flags = []
-    
+
     for (agency_id, method), awards_list in groups.items():
         if len(awards_list) < min_tenders:
             continue
-        
+
         # Count wins per supplier
         from collections import Counter
         supplier_wins = Counter(a["supplier_id"] for a in awards_list)
-        
+
         # If a small group (2-4 suppliers) wins most contracts, suspicious
         top_suppliers = supplier_wins.most_common(4)
         if len(top_suppliers) >= 2:
-            top_ids = set(s[0] for s in top_suppliers)
             top_wins = sum(s[1] for s in top_suppliers)
             total_awards = len(awards_list)
-            
+
             # If top 2-4 suppliers win >80% of contracts
             if top_wins / total_awards > 0.8 and len(top_suppliers) <= 4:
                 # Check if they're taking turns (no one dominates)
                 win_counts = [s[1] for s in top_suppliers]
                 max_wins = max(win_counts)
                 min_wins = min(win_counts)
-                
+
                 # If the ratio is close (no one has 3x more wins than another)
                 if min_wins > 0 and max_wins / min_wins < 3:
                     supplier_names = [
@@ -438,5 +439,5 @@ def winner_rotation(agency=None, months: int = 12, min_tenders: int = 5) -> list
                             severity="HIGH",
                         )
                     )
-    
+
     return flags

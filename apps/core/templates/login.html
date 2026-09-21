@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Bureau workspace{% endblock %}
+{% block description %}Staff sign-in for the {{ STATE_NAME }} procurement workspace. The public register needs no account.{% endblock %}
+
+{% block content %}
+<div class="wrap--narrow">
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Sign in</span></li>
+</ol></nav>
+
+<header class="page-head">
+  <h1>Sign in to the Bureau workspace</h1>
+  <p class="lede">This sign-in is for MDA officers, evaluators and oversight staff. <strong>Reading the
+  register never requires an account</strong> — if you came here to look at tenders, awards or contracts,
+  nothing on those pages is behind this door.</p>
+</header>
+
+{% if form.errors %}
+  <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+    <h2>There is a problem</h2>
+    <ul>
+      <li><a href="#id_username">The username or password was not recognised</a></li>
+    </ul>
+  </div>
+{% endif %}
+
+<form class="form" method="post" action="{% url 'login' %}" novalidate>
+  {% csrf_token %}
+  <div class="field">
+    <label class="field__label" for="id_username">Username</label>
+    <input id="id_username" name="username" type="text" autocomplete="username" autocapitalize="none"
+           spellcheck="false" required {% if form.errors %}aria-describedby="err-username"{% endif %}>
+    {% if form.errors %}<p class="field__error" id="err-username">Enter your username</p>{% endif %}
+  </div>
+  <div class="field">
+    <label class="field__label" for="id_password">Password</label>
+    <input id="id_password" name="password" type="password" autocomplete="current-password" required>
+  </div>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn" type="submit">Sign in</button>
+</form>
+
+<div class="callout callout--info">
+  <span class="callout__title">Multi-factor authentication is required for staff roles</span>
+  <p>You will be asked for a one-time code after your password. Suppliers use an SMS code instead, because
+  not everyone carries a smartphone.</p>
+</div>
+</div>
+{% endblock %}

@@ -450,8 +450,13 @@ class CategoryWatch(models.Model):
     class Meta:
         db_table = "proc_category_watch"
 
-# Phase 2-4 additional models
-from workflow.models_phases import (
+# Phase 2-4 additional models.
+#
+# Re-exported deliberately: Django only imports an app's `models` module when it
+# builds the registry, so importing them here is what registers the tables, and
+# callers get one obvious import path (`from workflow.models import
+# ContractMilestone`). The noqa is the record of that decision, not a mistake.
+from workflow.models_phases import (  # noqa: E402,F401  (re-export: registers the models)
     ApprovalRouting,
     BidReceipt,
     CommitteeDissent,

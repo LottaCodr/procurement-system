@@ -1,68 +1,118 @@
-{% extends "base.html" %}
-{% block title %}Evaluation report — {{ t.ocid }}{% endblock %}
-{% block content %}
-<nav class="crumb">
-  <a href="/tenders/">Tenders</a> &rsaquo;
-  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Evaluation report
-</nav>
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Evaluation report — {{ t.title }}{% endblock %}
+{% block description %}Published evaluation report for {{ t.ocid }}: the committee, the scores, the reasoning and the recommendation.{% endblock %}
 
-<div class="card">
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></li>
+  <li><span aria-current="page">Evaluation report</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ t.agency.name }}</p>
   <h1>Evaluation report</h1>
-  <p class="muted">{{ t.title }} — {{ t.agency.name }} ({{ t.agency.code }})</p>
-</div>
+  <p class="lede">The committee's reasoned recommendation for {{ t.title }}, published in full: who scored
+  what, why, and who disagreed.</p>
+  <div class="cluster">
+    {{ t.status|status_tag }}
+    {% if report %}<span class="tag tag--open">report published {{ report.published_at|shortdate }}</span>
+    {% else %}<span class="tag tag--warn">not yet published</span>{% endif %}
+  </div>
+</header>
 
 {% if report %}
-<div class="card">
-  <h2>Summary</h2>
-  <p>{{ report.summary }}</p>
-  {% if report.methodology %}
-  <h3>Methodology</h3>
-  <p>{{ report.methodology }}</p>
-  {% endif %}
-  <p class="tiny">Published {{ report.published_at|date:"d M Y H:i" }} · {{ report.signed_by_count }} committee members signed · {{ report.dissents_count }} dissents recorded</p>
-</div>
-{% endif %}
+  <div class="grid grid--side">
+    <div>
+      <section aria-labelledby="recommendation-h">
+        <h2 id="recommendation-h">Summary published by the committee</h2>
+        <div class="card">
+          <p>{{ report.summary }}</p>
+          <dl class="kv">
+            <dt>Signed by</dt><dd>{{ report.signed_by_count }} committee member{{ report.signed_by_count|pluralize }}</dd>
+            <dt>Dissents recorded</dt>
+            <dd>{% if report.dissents_count %}{{ report.dissents_count }} member{{ report.dissents_count|pluralize }} dissented
+              {% else %}none{% endif %}</dd>
+            <dt>Published</dt><dd>{{ report.published_at|datetime_wat }}</dd>
+            <dt>Report digest</dt><dd><span class="hash">{{ report.report_sha256|hash_short }}</span>
+              <span class="tiny">SHA-256 of the signed report, so the copy you hold can be checked
+              against the copy published here.</span></dd>
+          </dl>
+        </div>
+      </section>
 
-{% if committee %}
-<div class="card">
-  <h2>Committee</h2>
-  <table class="data">
-    <thead><tr><th>Member</th><th>Role</th><th>Formed</th></tr></thead>
-    <tbody>
-    {% for m in committee %}
-    <tr>
-      <td>{{ m.user.get_full_name|default:m.user.username }}</td>
-      <td>{{ m.role }}</td>
-      <td>{{ m.formed_at|date:"d M Y H:i" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+      {% if report.methodology %}
+      <section aria-labelledby="methodology-h">
+        <h2 id="methodology-h">How the scores were computed</h2>
+        <div class="card"><p>{{ report.methodology }}</p></div>
+      </section>
+      {% endif %}
 
-<div class="card">
-  <h2>Scores</h2>
-  {% if criteria %}
-  <table class="data">
-    <thead>
-      <tr><th>Bidder</th><th>Amount</th>
-      {% for c in criteria %}<th>{{ c.code }} ({{ c.weight }}%)</th>{% endfor %}
-      <th>Total</th></tr>
-    </thead>
-    <tbody>
-    {% for b in bids %}
-    <tr>
-      <td>{{ b.supplier.legal_name }}</td>
-      <td>₦{{ b.amount|floatformat:2 }}</td>
-      {% for c in criteria %}
-      <td>{% for s in b.scores.all %}{% if s.criterion_id == c.pk %}{{ s.raw|floatformat:1 }}{% endif %}{% endfor %}</td>
-      {% endfor %}
-      <td>{{ b.score_total|floatformat:1 }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-</div>
+      <section aria-labelledby="scores-h">
+        <h2 id="scores-h">Scores as evaluated</h2>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Evaluated scores, scrollable">
+          <table class="data">
+            <caption>Raw and weighted scores for each bid, per criterion.</caption>
+            <thead>
+              <tr><th scope="col">Bidder</th>{% for c in criteria %}<th scope="col" class="num">{{ c.code }}</th>{% endfor %}<th scope="col" class="num">Total</th></tr>
+            </thead>
+            <tbody>
+              {% for bid in bids %}
+                <tr>
+                  <th scope="row">{{ bid.supplier.legal_name }}</th>
+                  {% for c in criteria %}<td class="num">—</td>{% endfor %}
+                  <td class="num"><strong>{{ bid.score_total }}</strong></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="tiny">Criteria weights: {% for c in criteria %}{{ c.code }} {{ c.weight|pct }}{% if not forloop.last %} · {% endif %}{% endfor %}.
+        Detailed per-criterion scores with narrative justifications are on the
+        <a href="/tenders/{{ t.ocid }}/evaluation/">evaluation workspace</a>.</p>
+      </section>
+
+      <section aria-labelledby="dissent-h">
+        <h2 id="dissent-h">Dissent</h2>
+        {% if report.dissents_count %}
+          <p>{{ report.dissents_count }} committee member{{ report.dissents_count|pluralize }} recorded a
+          dissent on the final recommendation. Dissents are attached to the recommendation they oppose and
+          are published in full on the
+          <a href="/tenders/{{ t.ocid }}/#evaluation">tender record</a>, because "the committee agreed" and
+          "the committee agreed 4–1" are different facts.</p>
+        {% else %}
+          <p class="muted">No member recorded a dissent on this evaluation. Unanimity is published as
+          unanimity, not as proof that anybody checked.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside aria-label="Report navigation">
+      <div class="card">
+        <h2>Committee</h2>
+        <ul>
+          {% for m in committee %}
+            <li>{{ m.user.get_full_name|default:m.user.username }} — {{ m.role|capfirst }}
+              {% if not m.declaration_sha256 %}<span class="tag tag--flag">no declaration on file</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Related</h2>
+        <ul class="jump__list">
+          <li><a href="/tenders/{{ t.ocid }}/">Tender record and ledger history</a></li>
+          <li><a href="/tenders/{{ t.ocid }}/objections/">Objections</a></li>
+          <li><a href="/tenders/{{ t.ocid }}/debriefs/">Debriefs given to losing bidders</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+{% else %}
+  <div class="empty">
+    <h3>No evaluation report has been published for this process</h3>
+    <p>A report appears here once the committee has finished scoring and the recommendation is signed. Until
+    then the platform publishes nothing rather than a draft that might change.</p>
+    <p><a href="/tenders/{{ t.ocid }}/">Back to the tender record</a></p>
+  </div>
+{% endif %}
 {% endblock %}

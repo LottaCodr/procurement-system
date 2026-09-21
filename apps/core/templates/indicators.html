@@ -1,14 +1,102 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Red-flag indicators{% endblock %}
+{% block title %}Red-flag indicators, version {{ VERSION }}{% endblock %}
+{% block description %}The {{ rows|length }} automatic corruption-risk indicators that run on every {{ STATE_NAME }} procurement, their exact definitions, and how often each one has fired across the register.{% endblock %}
+
 {% block content %}
-<h1>Red-flag indicators</h1>
-<p class="lead">Version {{ VERSION }}. Every rule below runs on live data, and its definition is public by design:
-an indicator only the Bureau can see is an indicator the Bureau can quietly switch off.</p>
-{% for code, meta in INDICATORS.items %}<div class="card">
-<h3>{{ code }} &mdash; {{ meta.name }} {% if not meta.public %}<span class="tag">internal review only</span>{% else %}<span class="tag ok">shown on the tender page</span>{% endif %}</h3>
-<p>{{ meta.definition }}</p></div>{% endfor %}
-<div class="card"><h3>What a flag is not</h3><p>A flag is a prompt for scrutiny, not a finding of guilt.
-Every flag links the evidence it was computed from so a bidder can rebut it, and a
-<em>freeze</em> &mdash; a 10-day suspension of the procedure pending an independent panel &mdash; can be requested by
-any bidder or any member of the public, not only by officials.</p></div>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Red-flag indicators</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Red-flag indicators</h1>
+  <p class="lede">Version {{ VERSION }}. Every indicator below runs automatically on live data, and its
+  definition is published — an indicator only the Bureau can see is an indicator the Bureau can quietly
+  switch off.</p>
+  <div class="cluster">
+    <span class="tag tag--plain">{{ total_flags }} trigger{{ total_flags|pluralize }} across {{ scanned }} process{{ scanned|pluralize:"es" }} checked</span>
+    <a class="btn btn--secondary btn--small" href="/api/v1/indicators">Definitions as JSON</a>
+  </div>
+</header>
+
+<div class="callout callout--info">
+  <span class="callout__title">A flag is a prompt to look, not a finding of guilt</span>
+  <p>Each trigger prints the arithmetic that produced it, so a bidder can rebut it and a journalist can
+  reproduce it. Suspicion that cannot be checked is rumour, and rumour is not evidence.</p>
+</div>
+
+<section aria-labelledby="counts-h">
+  <h2 id="counts-h">How often each indicator fires</h2>
+  <p>Publishing a rule and publishing how often it fires are different acts. The second is what makes the
+  first auditable: a rule that never fires, on data where it should, is a rule that has been disabled.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Indicator trigger counts, scrollable">
+    <table class="data">
+      <caption>Counts computed over the {{ scanned }} most recent processes that have reached bid opening,
+      at the moment this page was rendered.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Code</th>
+          <th scope="col">Indicator</th>
+          <th scope="col">Published on the tender page?</th>
+          <th scope="col" class="num">Triggers</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.code }}</td>
+          <th scope="row">{{ r.name }}</th>
+          <td>{% if r.public %}<span class="tag tag--open">yes</span>{% else %}<span class="tag tag--closed">internal review only</span>{% endif %}</td>
+          <td class="num">{% if r.count %}{{ r.count }}{% else %}<span class="muted">0</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="defs-h">
+  <h2 id="defs-h">What each indicator means</h2>
+  {% for r in rows %}
+    <article class="card" id="{{ r.code|lower }}">
+      <div class="spread">
+        <h3>{{ r.code }} — {{ r.name }}</h3>
+        {% if r.count %}<span class="tag tag--warn">{{ r.count }} trigger{{ r.count|pluralize }}</span>{% else %}<span class="tag tag--closed">no triggers</span>{% endif %}
+      </div>
+      <p>{{ r.definition }}</p>
+      {% if not r.public %}
+        <p class="tiny">Not shown on individual tender pages because it describes a supplier's pattern
+        across many processes rather than anything specific to one bid. It is still computed, and its
+        results are available to auditors on request.</p>
+      {% endif %}
+      {% if r.examples %}
+        <h4>Recent triggers</h4>
+        <ul>
+          {% for ex in r.examples %}
+            <li><a href="/tenders/{{ ex.tender.ocid }}/">{{ ex.tender.ocid }} — {{ ex.tender.title|truncatewords:10 }}</a>
+              <span class="tiny">{{ ex.detail }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </article>
+  {% endfor %}
+</section>
+
+<section aria-labelledby="remedy-h">
+  <h2 id="remedy-h">What happens after a flag</h2>
+  <div class="grid grid--2">
+    <div class="card">
+      <h3>Anyone can freeze a suspect process</h3>
+      <p>A bidder, a losing competitor or any member of the public can request a freeze: a ten-day
+      suspension of the procedure while an independent panel looks at it. The Bureau cannot refuse to
+      record the request.</p>
+      <p><a href="/tenders/help/#objection">How to request a freeze or file an objection</a></p>
+    </div>
+    <div class="card">
+      <h3>The panel is not the Bureau's alone</h3>
+      <p>Half the seats on every review panel are nominated by civil society, and the Bureau cannot reject
+      those nominees. A panel the accused appoints is not a review.</p>
+      <p><a href="/tenders/indicators/#defs-h">Indicator definitions and version history</a></p>
+    </div>
+  </div>
+</section>
 {% endblock %}

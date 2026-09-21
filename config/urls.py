@@ -1,16 +1,12 @@
-from django.http import HttpResponse
-from django.template.loader import get_template
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-
-def stylesheet(request):
-    resp = HttpResponse(get_template("app.css").render({}), content_type="text/css; charset=utf-8")
-    resp["Cache-Control"] = "public, max-age=86400"
-    return resp
-
+from procurement import views as procurement_views
 
 urlpatterns = [
+    # The landing page is the procurement surface: one implementation, mounted
+    # at the root, so "/" and "/tenders/" can never drift apart.
+    path("", procurement_views.home, name="home"),
     path("", include("core.urls")),
     path("tenders/", include("procurement.urls")),
     path("api/v1/", include("procurement.api.urls")),

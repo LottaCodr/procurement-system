@@ -1,42 +1,187 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Tender register &mdash; {{ PLATFORM_NAME }}{% endblock %}
+{% block title %}Tender register{% if active_filters %} (filtered){% endif %} — {{ PLATFORM_NAME }}{% endblock %}
+{% block description %}Every procurement process {{ STATE_NAME }} has advertised: open, closed, under evaluation, awarded and contracted. Filter by agency, method, status or deadline and download the results as CSV.{% endblock %}
+
 {% block content %}
-<h1>Tender register</h1>
-<p class="lead">{{ total }} processes. Search is server-side and works with JavaScript disabled; every row links to a permanent URL that never changes.</p>
-<form class="filters" method="get" action="/tenders/">
-  <label>Search<input name="q" value="{{ q }}" placeholder="title, reference, supplier"></label>
-  <label>Agency<select name="agency"><option value="">All</option>
-    {% for a in agency_list %}<option value="{{ a.code }}" {% if a.code == agency %}selected{% endif %}>{{ a.code }}</option>{% endfor %}</select></label>
-  <label>Status<select name="status"><option value="">All</option>
-    {% for s in "PUBLISHED CLOSED OPENED EVALUATING AWARDED CONTRACTED FROZEN" %}{% endfor %}
-    {% for s in statuses %}{% endfor %}
-    <option>PUBLISHED</option><option>CLOSED</option><option>OPENED</option><option>EVALUATING</option><option>AWARDED</option><option>CONTRACTED</option><option>FROZEN</option></select></label>
-  <label><span style="visibility:hidden">_</span><span><label style="flex-direction:row;gap:6px;display:flex"><input type="checkbox" name="open" value="1" {% if show_open %}checked{% endif %} style="max-width:none"> Open only</label></span></label>
-  <button class="btn" type="submit" style="font:inherit;padding:7px 14px;border:1px solid #0a7d3c;background:#0a7d3c;color:#fff;border-radius:6px">Apply</button>
-  <a class="tiny" href="/tenders/">clear</a>
+<nav aria-label="Breadcrumb">
+  <ol class="crumbs">
+    <li><a href="/tenders/">Home</a></li>
+    <li><span aria-current="page">Tender register</span></li>
+  </ol>
+</nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Tender register</h1>
+  <p class="lede">{{ total }} process{{ total|pluralize:"es" }} that match your filters, out of every
+  procurement this state has published.
+  Each row opens a permanent page holding the documents, the bids, the evaluation, the ledger history —
+  and nothing that can be edited after publication.</p>
+</header>
+
+{% comment %} Filters are a plain GET form: the URL is the state, so a filtered register can be
+   bookmarked, shared on WhatsApp, and fetched again by a script. {% endcomment %}
+<form class="filters" method="get" action="/tenders/" role="search" aria-labelledby="filters-heading">
+  <h2 id="filters-heading" class="visually-hidden">Filter the register</h2>
+  <div class="filters__grid">
+    <div class="field">
+      <label class="field__label" for="f-q">Words in the notice</label>
+      <span class="field__hint" id="f-q-hint">Title, reference, OCID, agency or the name of a company that bid.</span>
+      <input id="f-q" name="q" type="search" value="{{ filters.q }}" autocomplete="off" aria-describedby="f-q-hint">
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-status">Status</label>
+      <select id="f-status" name="status">
+        <option value="">Any status</option>
+        {% for code, label in status_choices %}
+          <option value="{{ code }}" {% if filters.status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-agency">Ministry, department or agency</label>
+      <select id="f-agency" name="agency">
+        <option value="">All agencies</option>
+        {% for a in agency_list %}
+          <option value="{{ a.code }}" {% if filters.agency == a.code %}selected{% endif %}>{{ a.code }} — {{ a.name|truncatewords:6 }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-method">Procurement method</label>
+      <select id="f-method" name="method">
+        <option value="">Any method</option>
+        {% for code, label in method_choices %}
+          <option value="{{ code }}" {% if filters.method == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="f-sort">Order by</label>
+      <select id="f-sort" name="sort">
+        <option value="closing" {% if filters.sort == 'closing' %}selected{% endif %}>Closing soonest</option>
+        <option value="published" {% if filters.sort == 'published' %}selected{% endif %}>Most recently published</option>
+        <option value="value" {% if filters.sort == 'value' %}selected{% endif %}>Highest estimate</option>
+        <option value="title" {% if filters.sort == 'title' %}selected{% endif %}>Title (A–Z)</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="field__label" id="f-open-label">Show only</span>
+      <label class="field--inline" for="f-open">
+        <input id="f-open" type="checkbox" name="open" value="1" {% if filters.show_open %}checked{% endif %} aria-describedby="f-open-label">
+        <span>Tenders still open for bids</span>
+      </label>
+    </div>
+  </div>
+  <div class="filters__actions">
+    <button class="btn" type="submit">Apply filters</button>
+    <a class="btn btn--quiet" href="/tenders/">Clear all</a>
+    <span class="tiny">Search runs on the server, so the same URL gives the same answer to everyone.</span>
+  </div>
 </form>
 
+{% if active_filters %}
+  {# Removable chips: one tap to undo one filter, instead of rebuilding the query by hand. #}
+  <ul class="chips" aria-label="Filters currently applied">
+    {% if filters.q %}<li class="chip">Search: “{{ filters.q }}” <a href="{% querystring q=None %}" aria-label="Remove search filter">Remove<span class="visually-hidden"> search filter</span> ✕</a></li>{% endif %}
+    {% if filters.status %}<li class="chip">Status: {{ filters.status|status_tag }} <a href="{% querystring status=None %}" aria-label="Remove status filter">✕</a></li>{% endif %}
+    {% if filters.agency %}<li class="chip">Agency: {{ filters.agency }} <a href="{% querystring agency=None %}" aria-label="Remove agency filter">✕</a></li>{% endif %}
+    {% if filters.method %}<li class="chip">Method: {{ filters.method }} <a href="{% querystring method=None %}" aria-label="Remove method filter">✕</a></li>{% endif %}
+    {% if filters.show_open %}<li class="chip">Open for bids only <a href="{% querystring open=None %}" aria-label="Remove open-only filter">✕</a></li>{% endif %}
+  </ul>
+{% endif %}
+
 {% if rows %}
-<table>
-  <thead><tr><th>Reference</th><th>Title</th><th>Agency</th><th class="num">Estimate</th><th>Method</th><th>Status</th><th>Closes</th></tr></thead>
-  <tbody>
-  {% for t in rows %}
-    <tr>
-      <td><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a><div class="tiny">{{ t.reference }}</div></td>
-      <td>{{ t.title }}{% if t.red_flag_codes %}<div>{% for f in t.red_flag_codes %}<span class="tag flag">{{ f }}</span> {% endfor %}</div>{% endif %}</td>
-      <td class="muted">{{ t.agency.code }}</td>
-      <td class="num">{{ t.est_value|naira }}</td>
-      <td><span class="tag">{{ t.method }}</span></td>
-      <td>{{ t.status|status_tag }}</td>
-      <td>{{ t.submission_close_at|deadline }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-<p class="tiny">Page {{ page }} of {{ pages }} &middot;
-{% if prev_page %}<a href="?page={{ prev_page }}&q={{ q }}&agency={{ agency }}&status={{ status }}">&larr; previous</a>{% endif %}
-{% if next_page %} <a href="?page={{ next_page }}&q={{ q }}&agency={{ agency }}&status={{ status }}">next &rarr;</a>{% endif %}</p>
+  <div class="spread">
+    <p class="tiny" id="result-count">
+       Showing <strong>{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong> of
+       <strong>{{ total }}</strong> process{{ total|pluralize:"es" }}.
+    </p>
+    <p class="tiny">
+      <a href="/tenders/export.csv?{{ query_string }}">Download these {{ total }} rows as CSV</a>
+      · <a href="/api/v1/tenders?{{ query_string }}">same query as JSON</a>
+    </p>
+  </div>
+
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Tender register results, scrollable">
+    <table class="data data--sticky-first">
+      <caption>
+        Procurement processes{{ filters.show_open|yesno:", including closed and awarded ones" }}.
+        Times are West Africa Time. Status reflects the official process state; nothing here can be
+        edited after publication.
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Tender</th>
+          <th scope="col" class="hide-xs">Agency</th>
+          <th scope="col" class="num">Estimate</th>
+          <th scope="col" class="hide-xs">Method</th>
+          <th scope="col">Status</th>
+          <th scope="col">Deadline</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in rows %}
+        <tr>
+          <th scope="row">
+            <a href="/tenders/{{ t.ocid }}/">{{ t.title }}</a>
+            <span class="tiny">{{ t.ocid }}{% if t.reference %} · {{ t.reference }}{% endif %}</span>
+          </th>
+          <td class="hide-xs">{{ t.agency.code }}</td>
+          <td class="num">{% if t.est_value %}{{ t.est_value|naira }}{% else %}<span class="muted">not published</span>{% endif %}</td>
+          <td class="hide-xs">{{ t.get_method_display }}</td>
+          <td>{{ t.status|status_tag }}</td>
+          <td>
+            {% if t.status == "PUBLISHED" or t.status == "CLARIFYING" %}
+              {{ t.submission_close_at|deadline }}
+            {% elif t.submission_close_at %}
+              <span class="tiny">closed {{ t.submission_close_at|shortdate }}</span>
+            {% else %}
+              <span class="tiny">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Every row links to a permanent URL that will not change.</span>
+  </p>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <nav class="pager" aria-label="Register pages">
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <span class="pager__links">
+      {% if page_obj.has_previous %}
+        <a class="btn btn--secondary btn--small" rel="prev" href="{% querystring page=page_obj.previous_page_number %}">← Previous</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+        <a class="btn btn--secondary btn--small" rel="next" href="{% querystring page=page_obj.next_page_number %}">Next →</a>
+      {% endif %}
+    </span>
+  </nav>
+  {% endif %}
+
 {% else %}
-<div class="empty">Nothing matches those filters. That is a real answer, not a placeholder.</div>
+  <div class="empty">
+    {% if active_filters %}
+      <h3>No process matches those filters</h3>
+      <p>That is a real answer about the register as it stands, not a broken page. Nothing has been
+      hidden from you by the search.</p>
+      <div class="cluster">
+        <a class="btn" href="/tenders/">Clear the filters</a>
+        <a class="btn btn--secondary" href="/tenders/?open=1">Everything open for bids</a>
+      </div>
+    {% else %}
+      <h3>The register is empty</h3>
+      <p>No procurement process has been published yet. When the first one is advertised, it appears
+      here within the hour it is published.</p>
+      <div class="cluster">
+        <a class="btn btn--secondary" href="/tenders/rules/">Read the procurement rules</a>
+        <a class="btn btn--secondary" href="/tenders/feed/tenders/">Subscribe to the RSS feed</a>
+      </div>
+    {% endif %}
+  </div>
 {% endif %}
 {% endblock %}

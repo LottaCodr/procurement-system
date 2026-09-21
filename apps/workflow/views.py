@@ -6,17 +6,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from django.db.models import Count, Q, Sum
-from django.http import Http404, JsonResponse
+from django.db.models import Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET
 
 from procurement.models import (
-    Award, Bid, Contract, Criterion, EvaluationCommittee, Lot,
-    Objection, Score, Tender, TenderDocument,
+    Award, Bid, Contract, ContractEvent, Objection, Tender,
 )
-from procurement.models_party import Agency, BudgetLine, Party, PartyVerification, User
+from procurement.models_party import Party
 
 
 # ============================================================ Phase 2: Supplier
@@ -48,11 +47,17 @@ def supplier_detail(request, pk: int):
 
     avg_composite = ratings.aggregate(avg=__import__("django.db.models", fromlist=["Avg"]).Avg("composite"))["avg"]
 
+    total_awarded = awards.aggregate(v=Sum("amount"))["v"] or Decimal("0")
     return render(request, "supplier_detail.html", {
+        # Canonical names: `p` for a party, matching the register pages, so the
+        # same supplier object is not `s` on one page and `p` on the next.
+        "p": supplier,
         "s": supplier,
         "awards": awards,
+        "total_awarded": total_awarded,
         "bids": bids,
         "ratings": ratings,
+        "performance_records": ratings,
         "avg_composite": avg_composite or 0,
         "verifications": {
             v.kind: v for v in supplier.verifications.all()
@@ -79,7 +84,7 @@ def register_start(request):
 @require_GET
 def register_form(request, token: str = ""):
     """Multi-step registration form. Token identifies the draft."""
-    from workflow.models import SupplierRegistrationDraft, DraftDocument, DraftOwner
+    from workflow.models import SupplierRegistrationDraft
 
     draft = None
     if token:
@@ -180,8 +185,7 @@ def evaluation_workspace(request, ocid: str):
     and build the recommendation. Access controlled to committee members."""
     tender = get_object_or_404(
         Tender.objects.select_related("agency", "rule").prefetch_related(
-            "criteria", "committee__user", "bids__supplier__scores__criterion",
-            "bids__scores",
+            "criteria", "committee__user", "bids__scores__criterion",
         ),
         ocid=ocid,
     )
@@ -201,7 +205,6 @@ def evaluation_workspace(request, ocid: str):
         row = {"bid": bid, "scores": {}}
         for c in criteria:
             score = bid.scores.filter(criterion=c).first()
-            dissents = bid.scores.filter(criterion=c).first()
             row["scores"][c.code] = {
                 "score": score,
                 "dissents": list(score.dissents.all()) if score else [],
@@ -254,7 +257,7 @@ def evaluation_report_page(request, ocid: str):
     and recommendation."""
     tender = get_object_or_404(
         Tender.objects.public().select_related("agency").prefetch_related(
-            "criteria", "committee__user", "bids__supplier__scores__criterion",
+            "criteria", "committee__user", "bids__scores__criterion",
         ),
         ocid=ocid,
     )
@@ -419,6 +422,7 @@ def contract_milestones(request, reference: str):
     milestones = ContractMilestone.objects.filter(contract=contract).order_by("seq")
     return render(request, "contract_milestones.html", {
         "c": contract,
+        "contract": contract,
         "milestones": milestones,
     })
 
@@ -431,8 +435,10 @@ def contract_variations(request, reference: str):
     variations = ContractVariation.objects.filter(contract=contract)
     return render(request, "contract_variations.html", {
         "c": contract,
+        "contract": contract,
         "variations": variations,
         "total_pct": contract.variation_pct,
+        "variation_pct": contract.variation_pct,
     })
 
 
@@ -444,7 +450,6 @@ def contracts_dashboard(request):
         "award__bid__supplier", "award__tender__agency"
     ).order_by("-signed_at")
 
-    from workflow.models_phases import ContractMilestone, ContractVariation, ContractGuarantee
 
     status_filter = request.GET.get("status", "")
     if status_filter:
@@ -456,15 +461,30 @@ def contracts_dashboard(request):
     paid_count = contracts.filter(status="PAID").count()
     defaulted_count = contracts.filter(status="DEFAULTED").count()
 
-    # Variation stats
-    high_variation = []
-    for c in contracts[:100]:
-        vp = c.variation_pct
-        if vp > 10:
-            high_variation.append((c, vp))
+    # Variation stats. `Contract.variation_pct` aggregates the contract's own
+    # events, so calling it per row is one query per row — 100 contracts meant
+    # 100 extra round trips to render a list. One grouped query answers the same
+    # question for the whole page.
+    rows = list(contracts[:100])
+    pct_by_contract: dict[int, Decimal] = {}
+    growth = (
+        ContractEvent.objects.filter(
+            contract__in=rows, kind__in=["VARIATION", "CLAIM"]
+        )
+        .values("contract")
+        .annotate(growth=Sum("amount"))
+    )
+    for row in growth:
+        contract = next((c for c in rows if c.pk == row["contract"]), None)
+        if contract is None or not contract.value:
+            continue
+        pct_by_contract[contract.pk] = (row["growth"] or Decimal("0")) / contract.value * 100
+
+    high_variation = [(c, pct_by_contract[c.pk]) for c in rows if pct_by_contract.get(c.pk, Decimal("0")) > 10]
 
     return render(request, "contracts_dashboard.html", {
-        "contracts": contracts[:100],
+        "contracts": rows,
+        "variation_pct_by_id": pct_by_contract,
         "total_value": total_value,
         "active_count": active_count,
         "paid_count": paid_count,
@@ -531,9 +551,10 @@ def agent_desk(request):
     Senatorial zone hub, whose actions use the same API with an
     'acted_on_behalf_of' field — never a separate, unaudited back channel."""
     return render(request, "agent_desk.html", {
-        "open_tenders": Tender.objects.public().filter(
-            status=Tender.Status.PUBLISHED, submission_close_at__gt=timezone.now()
-        ).select_related("agency").order_by("submission_close_at")[:20],
+        # `.open()` is the single definition of "can still be bid on", shared with
+        # the register and the headline count.
+        "open_tenders": Tender.objects.public().open()
+        .select_related("agency").order_by("submission_close_at")[:20],
         "lgas": ["Jalingo", "Wukari", "Bali", "Takum", "Gembu"],
     })
 

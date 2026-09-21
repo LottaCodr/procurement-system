@@ -1,0 +1,125 @@
+/* ==========================================================================
+   02 — LAYOUT: shell, masthead, navigation, footer, page furniture
+   --------------------------------------------------------------------------
+   Navigation decision: the primary nav is a plain list of links in source
+   order, with a <details> disclosure for narrow screens. No hamburger button
+   with a JS dependency, no focus trap, no aria-expanded bookkeeping — it works
+   with JavaScript switched off, which is the majority of the design constraint
+   for a 2G/3G audience, and it keeps the whole site keyboard-operable.
+   The footer help block appears in the same place on every page (SC 3.2.6).
+   ========================================================================== */
+
+.wrap { width: 100%; max-width: var(--w-page); margin-inline: auto; padding-inline: var(--s4); }
+.wrap--narrow { max-width: 780px; }
+
+/* ----------------------------------------------------------------- masthead */
+.masthead { background: var(--c-brand-800); color: #fff; }
+@media (prefers-color-scheme: dark) { .masthead { background: #0a1a12; } }
+
+.masthead__top {
+  display: flex; align-items: center; gap: var(--s3);
+  padding-block: var(--s3); flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: var(--s3); color: #fff; text-decoration: none; }
+.brand:hover, .brand:focus { color: #fff; }
+.brand__mark {
+  display: grid; place-items: center; flex: none;
+  width: 42px; height: 42px; border-radius: var(--r-sm);
+  background: #fff; color: var(--c-brand-800);
+  font-weight: 800; font-size: 0.8125rem; letter-spacing: 0.02em;
+}
+.brand__text { display: block; line-height: 1.25; }
+.brand__text b { color: #fff; font-size: var(--fs-md); display: block; }
+.brand__text span { font-size: var(--fs-xs); color: #cfe3d7; }
+
+.masthead__utils { margin-left: auto; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.masthead__utils a, .masthead__utils button { color: #fff; font-size: var(--fs-sm); }
+
+/* Site search lives in the masthead of every page: the single most common
+   task on a procurement portal is "find the tender I heard about". */
+.search { display: flex; gap: var(--s2); flex-wrap: wrap; width: 100%; max-width: 30rem; }
+.search input { max-width: none; flex: 1 1 12rem; min-height: 40px; border-color: transparent; }
+.search label { display: block; width: 100%; color: #cfe3d7; font-size: var(--fs-xs); }
+
+/* --------------------------------------------------------------------- nav */
+.nav { background: var(--c-brand-700); color: #fff; }
+@media (prefers-color-scheme: dark) { .nav { background: #10281b; } }
+
+.nav__list { display: flex; flex-wrap: wrap; gap: 0; list-style: none; margin: 0; padding: 0; max-width: none; }
+.nav__list a {
+  display: block; color: #fff; text-decoration: none;
+  padding: var(--s3) var(--s3); font-size: var(--fs-sm); min-height: 44px;
+  display: flex; align-items: center; gap: var(--s2);
+}
+.nav__list a:hover { background: rgb(255 255 255 / 12%); color: #fff; }
+.nav__list a[aria-current] { background: #fff; color: var(--c-brand-800); font-weight: 650; }
+@media (prefers-color-scheme: dark) { .nav__list a[aria-current] { background: #e9f4ec; color: #08331e; } }
+
+.nav__toggle { display: none; }
+
+@media (max-width: 860px) {
+  .nav__list { display: none; }
+  .nav__list--open, .nav[open] .nav__list { display: block; }
+  .nav__toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
+    width: 100%; background: none; border: 0; color: #fff;
+    padding: var(--s3) var(--s4); font-size: var(--fs-sm); font-weight: 600;
+    cursor: pointer; list-style: none; min-height: 48px;
+  }
+  .nav__toggle::-webkit-details-marker { display: none; }
+  .nav__toggle::after { content: "▾"; font-size: 0.9em; }
+  .nav[open] .nav__toggle::after { content: "▴"; }
+  .nav__list { border-top: 1px solid rgb(255 255 255 / 18%); }
+  .nav__list li { border-bottom: 1px solid rgb(255 255 255 / 10%); }
+  .nav__list a { padding-inline: var(--s4); justify-content: space-between; }
+}
+@media (min-width: 861px) { details.nav > summary { display: none; } }
+
+/* ------------------------------------------------------------------- main */
+main { display: block; padding-block: var(--s5) var(--s7); }
+main:focus { outline: none; }
+
+/* ------------------------------------------------------------------- grids */
+.grid { display: grid; gap: var(--s4); }
+.grid--kpi { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+.grid--2 { grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.grid--3 { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.grid--side { grid-template-columns: minmax(0, 1fr); gap: var(--s5); }
+@media (min-width: 900px) {
+  .grid--side { grid-template-columns: minmax(0, 1fr) 20rem; align-items: start; }
+}
+.stack > * + * { margin-top: var(--s4); }
+.cluster { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.cluster--end { justify-content: flex-end; }
+.spread { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: baseline; justify-content: space-between; }
+
+/* --------------------------------------------------------------- page head */
+.page-head { margin-bottom: var(--s5); }
+.page-head h1 { margin-bottom: var(--s2); }
+.page-head--ruled { border-bottom: 3px solid var(--c-brand-700); padding-bottom: var(--s4); }
+@media (prefers-color-scheme: dark) { .page-head--ruled { border-color: var(--c-brand-200); } }
+
+.lede { font-size: var(--fs-md); color: var(--c-muted); max-width: var(--measure); margin-bottom: var(--s4); }
+
+.crumbs { font-size: var(--fs-sm); margin: 0 0 var(--s4); padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--s2); max-width: none; }
+.crumbs li { display: flex; gap: var(--s2); align-items: center; margin: 0; }
+.crumbs li + li::before { content: "›"; color: var(--c-muted); }
+.crumbs a { text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+.crumbs [aria-current] { color: var(--c-muted); }
+
+/* ------------------------------------------------------------------ footer */
+.foot { background: var(--c-surface); border-top: 1px solid var(--c-line); margin-top: var(--s8); padding-block: var(--s6) var(--s7); }
+.foot__grid { display: grid; gap: var(--s5); grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.foot h2 { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-ink); margin: 0 0 var(--s3); }
+.foot ul { list-style: none; padding: 0; margin: 0; font-size: var(--fs-sm); }
+.foot li { margin-bottom: var(--s2); }
+.foot__legal { border-top: 1px solid var(--c-line); margin-top: var(--s5); padding-top: var(--s4); font-size: var(--fs-xs); color: var(--c-muted); }
+.foot__legal p { max-width: 80ch; }
+
+/* --------------------------------------------------------- sticky in-page nav */
+.jump { position: sticky; top: var(--s2); }
+@media (max-width: 899px) { .jump { position: static; } }
+.jump__list { list-style: none; margin: 0; padding: 0; font-size: var(--fs-sm); }
+.jump__list a { display: block; padding: var(--s2) var(--s3); border-left: 3px solid var(--c-line); text-decoration: none; min-height: 40px; }
+.jump__list a:hover { border-color: var(--c-brand-700); background: var(--c-brand-50); color: var(--c-brand-800); }

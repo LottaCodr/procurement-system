@@ -1,0 +1,73 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Purchase orders — fast-lane spending{% endblock %}
+{% block description %}Small-value purchases made from the {{ STATE_NAME }} catalogue: quantity, price, supplier and whether the order cleared the three-quote rule.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Purchase orders</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Purchase orders</h1>
+  <p class="lede">{{ total_orders }} order{{ total_orders|pluralize }} raised through the catalogue fast lane.
+  Small purchases are the least visible spending in any state and the easiest to abuse: many small orders
+  to one supplier, just under a threshold, add up to a large contract that never competed. Each row here
+  publishes the quantity, the unit price and the supplier, so the pattern is checkable.</p>
+</header>
+
+<nav aria-label="Filter purchase orders by status">
+  <ul class="pillnav">
+    <li><a href="/tenders/purchase-orders/" {% if not status %}aria-current="page"{% endif %}>All</a></li>
+    {% for code, label in statuses %}
+      <li><a href="/tenders/purchase-orders/?status={{ code }}" {% if status == code %}aria-current="page"{% endif %}>{{ label }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+
+{% if orders %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Purchase orders, scrollable">
+    <table class="data data--sticky-first">
+      <caption>Purchase orders, newest first.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Reference</th>
+          <th scope="col">Item</th>
+          <th scope="col" class="hide-xs">MDA</th>
+          <th scope="col" class="num">Quantity</th>
+          <th scope="col" class="num hide-xs">Unit price</th>
+          <th scope="col">Supplier</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+          <tr>
+            <th scope="row"><a href="/tenders/purchase-orders/{{ o.pk }}/">{{ o.reference }}</a>
+              <span class="tiny">{{ o.created_at|shortdate }}</span></th>
+            <td>{{ o.title }}<span class="tiny">{{ o.category|capfirst }}</span></td>
+            <td class="hide-xs">{{ o.agency.code }}</td>
+            <td class="num">{{ o.quantity|floatformat:"-3" }} {{ o.unit }}</td>
+            <td class="num hide-xs">{% if o.awarded_unit_price %}{{ o.awarded_unit_price|naira_exact }}{% else %}—{% endif %}</td>
+            <td>{% if o.awarded_supplier %}{{ o.awarded_supplier.legal_name }}{% else %}<span class="muted">not awarded</span>{% endif %}</td>
+            <td>{{ o.status|status_tag }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Showing {{ orders|length }} of {{ total_orders }}. <a href="/api/v1/stats">Register totals as JSON</a></span>
+  </p>
+{% else %}
+  <div class="empty">
+    <h3>No purchase order with that status</h3>
+    <p>Try the full list. Orders appear here the moment they are raised, including ones still collecting
+    quotes.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/purchase-orders/">All purchase orders</a>
+      <a class="btn btn--secondary" href="/tenders/catalogue/">Browse the catalogue</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

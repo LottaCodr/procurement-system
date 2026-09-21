@@ -1,84 +1,99 @@
-{% extends "base.html" %}
-
-{% block title %}Reverse Auctions - {{ block.super }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Reverse auctions{% endblock %}
+{% block description %}Electronic reverse auctions on {{ STATE_NAME }} tenders: live, upcoming and closed, published as rank and distance from the leading price.{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-6">Reverse Auctions</h1>
-    
-    <p class="text-gray-600 mb-8">
-        Electronic reverse auctions for competitive price discovery. Bids are visible only as rank and delta-to-L1.
-    </p>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Reverse auctions</span></li>
+</ol></nav>
 
-    {% if live_auctions %}
-    <div class="mb-8">
-        <h2 class="text-2xl font-semibold mb-4 text-green-600">🔴 Live Auctions</h2>
-        <div class="grid gap-4">
-            {% for auction in live_auctions %}
-            <a href="{% url 'auction-detail' auction.id %}" class="block bg-white rounded-lg shadow hover:shadow-lg transition p-6 border-l-4 border-green-500">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ auction.tender.title }}</h3>
-                        <p class="text-sm text-gray-600 mt-1">{{ auction.tender.ocid }}</p>
-                        <p class="text-sm text-gray-500 mt-2">Reserve: ₦{{ auction.reserve_price|floatformat:2 }}</p>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-2xl font-bold text-green-600">{{ auction.bids.count }}</div>
-                        <div class="text-sm text-gray-600">Bids</div>
-                    </div>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+<header class="page-head page-head--ruled">
+  <h1>Reverse auctions</h1>
+  <p class="lede">A reverse auction is a bid opening turned into a live process: pre-qualified bidders
+  compete on price in a fixed window. Published here as <strong>rank and distance from the leading
+  price</strong> — never as other bidders' amounts. Competitors see the pressure they are under; nobody
+  is handed each other's commercial terms.</p>
+</header>
 
-    {% if upcoming_auctions %}
-    <div class="mb-8">
-        <h2 class="text-2xl font-semibold mb-4 text-blue-600">📅 Upcoming Auctions</h2>
-        <div class="grid gap-4">
-            {% for auction in upcoming_auctions %}
-            <a href="{% url 'auction-detail' auction.id %}" class="block bg-white rounded-lg shadow hover:shadow-lg transition p-6 border-l-4 border-blue-500">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ auction.tender.title }}</h3>
-                        <p class="text-sm text-gray-600 mt-1">{{ auction.tender.ocid }}</p>
-                        <p class="text-sm text-gray-500 mt-2">Starts: {{ auction.starts_at|date:"M d, Y H:i" }}</p>
-                    </div>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if ended_auctions %}
-    <div class="mb-8">
-        <h2 class="text-2xl font-semibold mb-4 text-gray-600">✓ Ended Auctions</h2>
-        <div class="grid gap-4">
-            {% for auction in ended_auctions %}
-            <a href="{% url 'auction-detail' auction.id %}" class="block bg-white rounded-lg shadow hover:shadow-lg transition p-6 border-l-4 border-gray-300">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ auction.tender.title }}</h3>
-                        <p class="text-sm text-gray-600 mt-1">{{ auction.tender.ocid }}</p>
-                        <p class="text-sm text-gray-500 mt-2">Ended: {{ auction.ends_at|date:"M d, Y H:i" }}</p>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-2xl font-bold text-gray-600">{{ auction.bids.count }}</div>
-                        <div class="text-sm text-gray-600">Bids</div>
-                    </div>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if not live_auctions and not upcoming_auctions and not ended_auctions %}
-    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-        No auctions available
-    </div>
-    {% endif %}
+<div class="callout callout--info">
+  <span class="callout__title">What is public while the auction runs</span>
+  <p>Your own price, your rank, and how far you are from the best price. Everyone's price becomes public
+  when the auction closes. Absolute prices of losing bids are never published, because a bid is a firm's
+  cost structure, not a public document.</p>
 </div>
+
+{% if live_auctions %}
+<section aria-labelledby="live-h">
+  <h2 id="live-h">Live now</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Live auctions, scrollable">
+    <table class="data">
+      <caption>Auctions currently accepting bids.</caption>
+      <thead><tr><th scope="col">Tender</th><th scope="col">MDA</th><th scope="col">Ends</th><th scope="col" class="num">Bids so far</th><th scope="col" class="num">Reserve</th></tr></thead>
+      <tbody>
+        {% for a in live_auctions %}
+          <tr>
+            <th scope="row"><a href="/tenders/auctions/{{ a.pk }}/">{{ a.tender.title }}</a>
+              <span class="tiny">{{ a.tender.ocid }}</span></th>
+            <td>{{ a.tender.agency.code }}</td>
+            <td>{{ a.ends_at|datetime_wat }}</td>
+            <td class="num">{{ a.bids.count }}</td>
+            <td class="num">{{ a.reserve_price|naira }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if upcoming_auctions %}
+<section aria-labelledby="upcoming-h">
+  <h2 id="upcoming-h">Starting soon</h2>
+  <ul>
+    {% for a in upcoming_auctions %}
+      <li><a href="/tenders/auctions/{{ a.pk }}/">{{ a.tender.title }}</a> —
+        opens {{ a.starts_at|datetime_wat }}, ends {{ a.ends_at|datetime_wat }}
+        <span class="tiny">{{ a.tender.agency.code }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="tiny">Timings are published in advance so bidders can arrange connectivity. An auction that
+  starts unannounced is an auction that excludes anyone on a slower connection.</p>
+</section>
+{% endif %}
+
+{% if ended_auctions %}
+<section aria-labelledby="ended-h">
+  <h2 id="ended-h">Closed</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Closed auctions, scrollable">
+    <table class="data">
+      <caption>Closed auctions, most recent first. Winner and final price are public; other bidders'
+      amounts are not.</caption>
+      <thead><tr><th scope="col">Tender</th><th scope="col">MDA</th><th scope="col">Closed</th><th scope="col">Winner</th><th scope="col" class="num">Final price</th></tr></thead>
+      <tbody>
+        {% for a in ended_auctions %}
+          <tr>
+            <th scope="row"><a href="/tenders/auctions/{{ a.pk }}/">{{ a.tender.title }}</a></th>
+            <td>{{ a.tender.agency.code }}</td>
+            <td>{{ a.ends_at|shortdate }}</td>
+            <td>{% if a.winning_bid %}{{ a.winning_bid.supplier.legal_name }}{% else %}<span class="muted">no valid bid</span>{% endif %}</td>
+            <td class="num">{% if a.winning_bid %}{{ a.winning_bid.amount|naira_exact }}{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if not live_auctions and not upcoming_auctions and not ended_auctions %}
+  <div class="empty">
+    <h3>No reverse auction has been run yet</h3>
+    <p>Auctions are used where price is the only remaining variable and the shortlist is fixed. The tender
+    register is the place to look for processes you can bid on today.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/?open=1&amp;sort=closing">Tenders open for bids</a>
+      <a class="btn btn--secondary" href="/tenders/help/#bid">How to bid</a>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

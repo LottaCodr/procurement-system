@@ -1,74 +1,78 @@
-{% extends "base.html" %}
-
-{% block title %}Defects Liability Period - {{ block.super }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Defects liability — retention still held{% endblock %}
+{% block description %}Contracts still inside their defects liability period, the retention money the state is holding back, and whether reported defects were actually fixed.{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-6">Defects Liability Period</h1>
-    
-    <p class="text-gray-600 mb-8">
-        Contracts currently in their defects liability period. Suppliers must rectify defects before retention money is released.
-    </p>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Defects liability</span></li>
+</ol></nav>
 
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contract</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Days Remaining</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Open Defects</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for cd in contract_data %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="{% url 'defects-detail' cd.contract.id %}" class="text-green-600 hover:text-green-800 font-semibold">
-                            {{ cd.contract.reference }}
-                        </a>
-                        <p class="text-sm text-gray-500">{{ cd.contract.award.tender.title|truncatewords:8 }}</p>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ cd.contract.award.bid.supplier.legal_name }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ₦{{ cd.contract.value|floatformat:2 }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm {% if cd.remaining_days < 30 %}text-red-600 font-semibold{% else %}text-gray-900{% endif %}">
-                        {{ cd.remaining_days }} days
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm {% if cd.open_defects > 0 %}text-red-600 font-semibold{% else %}text-green-600{% endif %}">
-                        {{ cd.open_defects }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <a href="{% url 'defects-detail' cd.contract.id %}" class="text-green-600 hover:text-green-800">
-                            View Details
-                        </a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
-                        No contracts currently in defects liability period
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<header class="page-head page-head--ruled">
+  <h1>Defects liability and retention</h1>
+  <p class="lede">During the defects liability period the state still holds retention money, which means it
+  still has leverage. This page is the state's account of how it is using that leverage: {{ contract_count }}
+  contract{{ contract_count|pluralize }} still inside the period, {{ open_total }} defect{{ open_total|pluralize }}
+  open, and {{ retention_total|naira }} of retention not yet released.</p>
+</header>
 
-    <div class="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4">
-        <div class="flex">
-            <div class="ml-3">
-                <h3 class="text-sm font-medium text-blue-800">About Defects Liability</h3>
-                <div class="mt-2 text-sm text-blue-700">
-                    <p>During the defects liability period (typically 12 months after completion), the supplier must rectify any defects at their own cost. Retention money (typically 5% of contract value) is held until all defects are resolved and the period expires.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ contract_count }}</span><span class="kpi__label">contracts in liability period</span></div>
+  <div class="kpi"><span class="kpi__value">{{ open_total }}</span><span class="kpi__label">defects open</span>
+    {% if critical_total %}<span class="kpi__meta"><span class="tag tag--flag">{{ critical_total }} critical</span></span>{% endif %}</div>
+  <div class="kpi"><span class="kpi__value">{{ retention_total|naira }}</span><span class="kpi__label">retention not yet released</span>
+    <span class="kpi__meta">money the state can still withhold</span></div>
 </div>
+
+{% if rows %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Contracts in defects liability, scrollable">
+    <table class="data data--sticky-first">
+      <caption>Contracts still inside their defects liability period, earliest expiry first. Retention held
+      is the contract value times the retention percentage, minus anything already released.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Contract</th>
+          <th scope="col">Supplier</th>
+          <th scope="col" class="hide-xs">MDA</th>
+          <th scope="col" class="num">Retention held</th>
+          <th scope="col">Liability ends</th>
+          <th scope="col">Defects</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <th scope="row"><a href="/tenders/contracts/{{ r.contract.reference }}/">{{ r.contract.reference }}</a>
+              <span class="tiny"><a href="/tenders/defects/{{ r.contract.pk }}/">Defect register for this contract</a></span></th>
+            <td>{{ r.contract.award.bid.supplier.legal_name }}</td>
+            <td class="hide-xs">{{ r.contract.award.tender.agency.code }}</td>
+            <td class="num">{{ r.retention_held|naira }}</td>
+            <td>{{ r.contract.defects_liability_end|shortdate }}
+              <span class="tiny">{{ r.remaining_days }} days left</span></td>
+            <td>
+              {% if r.open_defects %}<span class="tag tag--flag">{{ r.open_defects }} open</span>
+              {% elif r.defect_count %}<span class="tag tag--open">{{ r.defect_count }} reported, all closed</span>
+              {% else %}<span class="tag tag--closed">none reported</span>{% endif %}
+              {% if r.critical_defects %}<span class="tag tag--flag">{{ r.critical_defects }} critical</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Retention is released only after the defect is verified as fixed. A defect reported and never
+    verified is published as open, indefinitely.</span>
+  </p>
+{% else %}
+  <div class="empty">
+    <h3>No contract is currently inside a defects liability period</h3>
+    <p>Either every contract's liability period has expired, or no contract has reached acceptance yet.
+    Both are real states; the page does not merge them into a single reassuring number.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/contracts/">See all contracts</a>
+      <a class="btn btn--secondary" href="/tenders/payments/">Payment certifications</a>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

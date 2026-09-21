@@ -1,61 +1,112 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load core_tags %}
 {% block title %}Supplier performance ratings{% endblock %}
+{% block description %}Delivery grades for {{ STATE_NAME }} contractors, computed from timeliness, inspected quality and variation growth, with the formula published.{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>Supplier performance ratings</h1>
-  <p>Performance ratings are computed from contract delivery data: timeliness, quality (snag count),
-  and variation ratio. Ratings are published so a good contractor in any LGA gets known without
-  meeting an official. The methodology is public.</p>
-  <div class="filters">
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Supplier ratings</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Who delivers</h1>
+  <p class="lede">Performance grades are awarded after a contract is accepted, not at bid time — a promise
+  is not a delivery record. The formula is published below, so a contractor who disagrees can point at the
+  arithmetic instead of at a reputation.</p>
+</header>
+
+<nav aria-label="Filter by grade">
+  <ul class="pillnav">
+    <li><a href="/tenders/ratings/" {% if not grade_filter %}aria-current="page"{% endif %}>All grades</a></li>
     {% for code, label in grades %}
-    <a href="?grade={{ code }}" class="btn {% if grade_filter == code %}primary{% endif %}">{{ label }}</a>
+      <li><a href="/tenders/ratings/?grade={{ code }}" {% if grade_filter == code %}aria-current="page"{% endif %}>{{ label }}</a></li>
     {% endfor %}
-    <a href="/tenders/ratings/" class="btn">All</a>
+  </ul>
+</nav>
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="ratings-h">
+      <h2 id="ratings-h">Ratings</h2>
+      {% if ratings %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Supplier ratings, scrollable">
+          <table class="data data--sticky-first">
+            <caption>One row per completed contract assessment. Component scores are printed beside the
+            composite so the grade can be checked rather than believed.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Supplier</th>
+                <th scope="col">Contract</th>
+                <th scope="col">Grade</th>
+                <th scope="col" class="num hide-xs">Timeliness</th>
+                <th scope="col" class="num hide-xs">Quality</th>
+                <th scope="col" class="num hide-xs">Variation control</th>
+                <th scope="col" class="num">Composite</th>
+                <th scope="col" class="hide-xs">Rated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in ratings %}
+                <tr>
+                  <th scope="row"><a href="/tenders/suppliers/{{ r.supplier.pk }}/">{{ r.supplier.legal_name }}</a>
+                    {% if r.supplier.is_debarred %}<span class="tag tag--flag">debarred</span>{% endif %}</th>
+                  <td><a href="/tenders/contracts/{{ r.contract.reference }}/">{{ r.contract.reference }}</a>
+                    <span class="tiny">{{ r.contract.award.tender.agency.code }}</span></td>
+                  <td>{{ r.get_grade_display }}</td>
+                  <td class="num hide-xs">{{ r.timeliness_score|floatformat:0 }}</td>
+                  <td class="num hide-xs">{{ r.quality_score|floatformat:0 }}</td>
+                  <td class="num hide-xs">{{ r.variation_score|floatformat:0 }}</td>
+                  <td class="num"><strong>{{ r.composite|floatformat:0 }}</strong></td>
+                  <td class="hide-xs">{{ r.rated_at|shortdate }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="table-note">
+          <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+          <span>{{ ratings|length }} assessment{{ ratings|length|pluralize }} in view.</span>
+        </p>
+      {% else %}
+        <div class="empty">
+          <h3>No contract has been assessed yet</h3>
+          <p>Ratings appear after a contract is completed and accepted. Absence of a rating is not a poor
+          rating, and this page will not fill the gap with a zero.</p>
+          <div class="cluster">
+            <a class="btn" href="/tenders/contracts/">See contracts in progress</a>
+            <a class="btn btn--secondary" href="/tenders/suppliers/">The supplier register</a>
+          </div>
+        </div>
+      {% endif %}
+    </section>
   </div>
-</div>
 
-{% if sorted_suppliers %}
-<div class="card">
-  <h2>Rated suppliers</h2>
-  <table class="data">
-    <thead><tr><th>Supplier</th><th>Category</th><th>Ratings</th><th>Avg composite</th><th>Best grade</th></tr></thead>
-    <tbody>
-    {% for data in sorted_suppliers %}
-    <tr>
-      <td><a href="/tenders/suppliers/{{ data.supplier.pk }}/">{{ data.supplier.legal_name }}</a></td>
-      <td>{{ data.supplier.get_category_display }}</td>
-      <td>{{ data.ratings|length }}</td>
-      <td>{{ data.avg_composite|floatformat:0 }}/100</td>
-      <td>
-        {% with best=data.ratings.0 %}
-        <span class="badge grade-{{ best.grade }}">{{ best.get_grade_display }}</span>
-        {% endwith %}
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-<div class="card">
-  <h2>Recent ratings</h2>
-  <table class="data">
-    <thead><tr><th>Supplier</th><th>Contract</th><th>Grade</th><th>Timeliness</th><th>Quality</th><th>Variation</th><th>Composite</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for r in ratings %}
-    <tr>
-      <td><a href="/tenders/suppliers/{{ r.supplier.pk }}/">{{ r.supplier.legal_name }}</a></td>
-      <td><a href="/tenders/contracts/{{ r.contract.reference }}/">{{ r.contract.reference }}</a></td>
-      <td><span class="badge grade-{{ r.grade }}">{{ r.get_grade_display }}</span></td>
-      <td>{{ r.timeliness_score|floatformat:0 }}</td>
-      <td>{{ r.quality_score|floatformat:0 }}</td>
-      <td>{{ r.variation_score|floatformat:0 }}</td>
-      <td><strong>{{ r.composite|floatformat:0 }}</strong></td>
-      <td>{{ r.rated_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <aside aria-label="Suppliers by average grade">
+    <div class="card">
+      <h2>Firms with a delivery record</h2>
+      {% if sorted_suppliers %}
+        <ol>
+          {% for s in sorted_suppliers %}
+            <li><a href="/tenders/suppliers/{{ s.supplier.pk }}/">{{ s.supplier.legal_name }}</a>
+              <span class="tiny">{% if s.avg_composite %}{{ s.avg_composite|floatformat:0 }} average{% else %}not yet graded{% endif %}
+              over {{ s.ratings|length }} contract{{ s.ratings|length|pluralize }}</span></li>
+          {% endfor %}
+        </ol>
+        <p class="tiny">Averages are shown with the count of contracts they are drawn from, because one
+        excellent job is not a track record and one poor job is not a company's character.</p>
+      {% else %}
+        <p class="muted">No supplier has a published rating yet.</p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>How the grade is computed</h2>
+      <ul>
+        <li><strong>Timeliness (35%)</strong> — milestones delivered against the planned dates.</li>
+        <li><strong>Quality (40%)</strong> — snags and rework found at inspection.</li>
+        <li><strong>Variation control (25%)</strong> — growth of the contract value after signature.</li>
+      </ul>
+      <p class="tiny">A: 85+ · B: 70–84 · C: 50–69 · D: 30–49 · F: below 30 or defaulted.
+      Scores are recorded by a named officer and can be disputed.</p>
+    </div>
+  </aside>
 </div>
 {% endblock %}

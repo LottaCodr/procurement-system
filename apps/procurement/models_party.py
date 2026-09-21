@@ -225,14 +225,14 @@ class Party(Timestamped):
     def update_performance_score(self):
         """Update performance score based on contract close-out ratings."""
         from procurement.models_additional import ContractCloseOut
-        
+
         close_outs = ContractCloseOut.objects.filter(
             contract__award__supplier=self
         )
-        
+
         if not close_outs.exists():
             return
-        
+
         # Calculate weighted average
         weights = {
             'EXCELLENT': 100,
@@ -240,10 +240,10 @@ class Party(Timestamped):
             'POOR': 40,
             'UNSATISFACTORY': 20,
         }
-        
+
         total_score = sum(weights.get(co.performance_rating, 50) for co in close_outs)
         avg_score = total_score / close_outs.count()
-        
+
         self.performance_score = Decimal(str(avg_score))
         self.total_contracts_completed = close_outs.count()
         self.save(update_fields=['performance_score', 'total_contracts_completed'])

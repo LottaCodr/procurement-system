@@ -1,20 +1,101 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Supplier register{% endblock %}
+{% block title %}Supplier register — who is verified to bid{% endblock %}
+{% block description %}Companies registered to bid for {{ STATE_NAME }} government work, with the identity checks that have passed, their expiry dates and whether they are debarred.{% endblock %}
+
 {% block content %}
-<h1>Supplier register</h1>
-<p class="lead">{{ count }} active suppliers, {{ debarred }} currently debarred. Identity is shown as dated,
-attributable verification assertions &mdash; not a tick box.</p>
-<form class="filters" method="get"><label>Search<input name="q" value="{{ q }}" placeholder="name or RC number"></label>
-<button type="submit" style="padding:7px 14px;border:1px solid #0a7d3c;background:#0a7d3c;color:#fff;border-radius:6px">Apply</button></form>
-{% if rows %}<table><thead><tr><th>Supplier</th><th>RC</th><th>Location</th><th>Category</th><th>Verified credentials</th><th>Awards</th></tr></thead><tbody>
-{% for p in rows %}<tr>
-  <td>{{ p.legal_name }}{% if p.is_debarred %} <span class="tag flag">DEBARRED</span>{% endif %}{% if p.pep_flag %}<div class="tiny">politically exposed ownership declared</div>{% endif %}</td>
-  <td class="muted">{{ p.rc_number }}</td>
-  <td class="muted">{{ p.lga|default:p.state }}{% if p.scope == "LOCAL" %} <span class="tag">Taraba</span>{% endif %}</td>
-  <td><span class="tag">{{ p.category }}</span></td>
-  <td>{% for v in p.verifications.all %}<div class="tiny">{{ v.get_kind_display }}: {{ v.status }}{% if v.expires_at %} to {{ v.expires_at|shortdate }}{% endif %}</div>{% empty %}<span class="tag flag">unverified</span>{% endfor %}</td>
-  <td class="num">{{ p.bids.count }} bids</td>
-</tr>{% endfor %}</tbody></table>
-{% else %}<div class="empty">No supplier matches.</div>{% endif %}
-<p class="tiny">Tax identifiers are deliberately masked: this register is a check on the state, not a lookup service for identity theft.</p>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Suppliers</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Supplier register</h1>
+  <p class="lede">{{ count }} active supplier{{ count|pluralize }}{% if debarred %}, {{ debarred }} currently
+  debarred{% endif %}. Identity is shown as dated, attributable verification assertions — not a tick box
+  that nobody can check.</p>
+</header>
+
+<form class="filters" method="get" action="/tenders/suppliers/" aria-labelledby="sup-filters">
+  <h2 id="sup-filters" class="visually-hidden">Filter suppliers</h2>
+  <div class="filters__grid">
+    <div class="field">
+      <label class="field__label" for="s-q">Company name or registration number</label>
+      <input id="s-q" name="q" type="search" value="{{ q }}" autocomplete="off">
+    </div>
+    <div class="field">
+      <label class="field__label" for="s-cat">Category</label>
+      <select id="s-cat" name="category">
+        <option value="">Any category</option>
+        {% for code, label in category_choices %}<option value="{{ code }}" {% if category == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="field__label" for="s-scope">Domicile</label>
+      <select id="s-scope" name="scope">
+        <option value="">Anywhere</option>
+        {% for code, label in scope_choices %}<option value="{{ code }}" {% if scope == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="filters__actions">
+    <button class="btn" type="submit">Apply filters</button>
+    <a class="btn btn--quiet" href="/tenders/suppliers/">Clear all</a>
+  </div>
+</form>
+
+{% if rows %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Supplier register, scrollable">
+    <table class="data data--sticky-first">
+      <caption>Registered suppliers, most awarded first. Verification is shown with the date it was
+      checked and the date it lapses — an expired certificate is not a pass.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Supplier</th>
+          <th scope="col" class="hide-xs">RC number</th>
+          <th scope="col" class="hide-xs">Where</th>
+          <th scope="col" class="hide-xs">Category</th>
+          <th scope="col">Verification</th>
+          <th scope="col" class="num">Awards</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in rows %}
+        <tr>
+          <th scope="row">
+            <a href="/tenders/suppliers/{{ p.pk }}/">{{ p.legal_name }}</a>
+            {% if p.is_debarred %}<span class="tag tag--flag">debarred</span>{% endif %}
+            {% if p.pep_flag %}<span class="tag tag--warn">politically exposed ownership declared</span>{% endif %}
+          </th>
+          <td class="hide-xs">{{ p.rc_number }}</td>
+          <td class="hide-xs">{{ p.lga|default:p.state|default:"—" }}{% if p.scope == "LOCAL" %} <span class="tag tag--plain">Taraba</span>{% endif %}</td>
+          <td class="hide-xs">{{ p.get_category_display }}</td>
+          <td>
+            {% for v in p.verifications.all %}
+              <span class="tag {% if v.status == 'PASSED' %}tag--open{% elif v.status == 'EXPIRED' %}tag--flag{% else %}tag--warn{% endif %}">
+                {{ v.get_kind_display }}: {{ v.get_status_display }}{% if v.expires_at %} to {{ v.expires_at|shortdate }}{% endif %}
+              </span>
+            {% empty %}
+              <span class="tag tag--flag">no verification on file</span>
+            {% endfor %}
+          </td>
+          <td class="num">{{ p.n_awards }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Tax identifiers are deliberately masked: this register is a check on the state, not a lookup
+    service for identity theft.</span>
+  </p>
+{% else %}
+  <div class="empty">
+    <h3>No supplier matches those filters</h3>
+    <p>Registering is free and open to any company with a valid RC number and TIN.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/register/">Register as a supplier</a>
+      <a class="btn btn--secondary" href="/tenders/suppliers/">Clear the filters</a>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

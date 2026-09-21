@@ -7,39 +7,28 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth import authenticate, login
-from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
-from django.utils import timezone
+from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from procurement.crypto import encrypt_bid_payload  # demo helper
 from procurement.models import Tender
 from procurement.models_party import Party, User
 from workflow.models import (
     CatalogueItem,
-    CategoryWatch,
     MFASession,
-    Notification,
-    PurchaseOrder,
-    Submission,
     SupplierRegistrationDraft,
-    TenderKey,
     TenderWatch,
-    WhistleblowerReport,
 )
 from workflow.services import (
     add_draft_owner,
     client_encrypt_helper,
-    file_objection,
     file_whistleblower,
     enrol_totp,
     save_draft_step,
-    score_bid,
     send_mfa_challenge,
     start_registration,
     submit_bid,
     submit_draft,
-    t as tr,
     unseal_bids,
     upload_draft_document,
     verify_mfa,
@@ -180,7 +169,8 @@ def api_mfa_verify(request):
 @require_POST
 def api_enrol_totp(request):
     u = _u(request)
-    if not u: return HttpResponseForbidden()
+    if not u:
+        return HttpResponseForbidden()
     secret, uri = enrol_totp(u)
     return JsonResponse({"secret": secret, "otpauth": uri})
 
@@ -196,7 +186,8 @@ def api_watchlist(request):
 @require_POST
 def api_watch(request, ocid: str):
     u = _u(request)
-    if not u or not hasattr(u, "party"): return HttpResponseForbidden()
+    if not u or not hasattr(u, "party"):
+        return HttpResponseForbidden()
     t = Tender.objects.get(ocid=ocid)
     TenderWatch.objects.get_or_create(party=u.party, tender=t)
     return JsonResponse({"ok": True})

@@ -1,36 +1,59 @@
-{% extends "base.html" %}
-{% block title %}Variations — {{ c.reference }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Variations — contract {{ contract.reference }}{% endblock %}
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/contracts/">Contracts</a> &rsaquo;
-  <a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a> &rsaquo; Variations
-</nav>
-<div class="card">
-  <h1>Contract variations — {{ c.reference }}</h1>
-  <p>Total variation: <strong>{{ total_pct }}%</strong> of signed value (₦{{ c.value|floatformat:2 }}).
-  Variations exceeding 10% trigger red-flag indicator T10 and require a higher approving authority.</p>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/contracts/">Contracts</a></li>
+  <li><a href="/tenders/contracts/{{ contract.reference }}/">{{ contract.reference }}</a></li>
+  <li><span aria-current="page">Variations</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Variation history</h1>
+  <p class="lede">Every change to price, scope or time — with the reason, the approver and the date. The
+  original award amount stays printed at the top, because a contract whose headline price drifts upward
+  without a trail is the classic way to turn a competitive tender into a direct one.</p>
+</header>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ contract.value|naira }}</span><span class="kpi__label">current contract value</span></div>
+  <div class="kpi"><span class="kpi__value">{{ contract.award.amount|naira }}</span><span class="kpi__label">as awarded</span></div>
+  <div class="kpi"><span class="kpi__value">{{ variation_pct|pct }}</span><span class="kpi__label">cumulative change</span>
+    {% if variation_pct > 10 %}<span class="kpi__meta"><span class="tag tag--flag">above the 10% attention line</span></span>{% endif %}</div>
+  <div class="kpi"><span class="kpi__value">{{ variations|length }}</span><span class="kpi__label">variation{{ variations|length|pluralize }}</span></div>
 </div>
-{% for v in variations %}
-<div class="card">
-  <div class="grid-2">
-    <div>
-      <h3>{{ v.title }}</h3>
-      <dl>
-        <dt>Amount change</dt><dd>₦{{ v.amount_change|floatformat:2 }}</dd>
-        <dt>% of contract</dt><dd>{{ v.pct_of_contract }}%</dd>
-        <dt>Time change</dt><dd>{% if v.time_change_days %}{{ v.time_change_days }} days{% else %}—{% endif %}</dd>
-        <dt>Status</dt><dd><span class="badge">{{ v.get_status_display }}</span></dd>
-        {% if v.alarm_triggered %}<dt class="bad">⚠ Alarm</dt><dd class="bad">Variation exceeds 10% threshold</dd>{% endif %}
-      </dl>
-    </div>
-    <div>
-      <h4>Reason</h4>
-      <p>{{ v.reason }}</p>
-      <p class="tiny">Proposed {{ v.proposed_at|date:"d M Y" }}{% if v.approved_by %} · Approved {{ v.approved_at|date:"d M Y" }} by {{ v.approved_by.get_full_name|default:v.approved_by.username }}{% endif %}</p>
-    </div>
+
+{% if variations %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Variations, scrollable">
+    <table class="data">
+      <caption>Variations in the order they were approved.</caption>
+      <thead>
+        <tr><th scope="col">#</th><th scope="col">What changed</th><th scope="col" class="num">Value change</th>
+        <th scope="col" class="hide-xs">Time change</th><th scope="col">Reason</th><th scope="col">Approved by</th><th scope="col">When</th></tr>
+      </thead>
+      <tbody>
+      {% for v in variations %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <th scope="row">{{ v.title|default:v.get_kind_display }}</th>
+          <td class="num">{% if v.amount_change %}{{ v.amount_change|naira }}{% else %}—{% endif %}</td>
+          <td class="hide-xs">{% if v.time_change_days %}{{ v.time_change_days }} days{% else %}—{% endif %}</td>
+          <td>{{ v.reason }}</td>
+          <td>{{ v.approved_by.get_full_name|default:v.approved_by.username|default:"—" }}</td>
+          <td>{{ v.approved_at|shortdate|default:v.proposed_at|shortdate }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
-{% empty %}
-<div class="card"><p class="muted">No variations recorded for this contract.</p></div>
-{% endfor %}
+{% else %}
+  <div class="callout callout--info">
+    <span class="callout__title">This contract has never been varied</span>
+    <p>No price change, no scope change, no extension. That is the ordinary case, and it is worth
+    publishing plainly — a register that only shows the exceptions teaches you to distrust the silence.</p>
+  </div>
+{% endif %}
+
+<p class="tiny">A variation is lawful. A variation that arrives with the delivery is the thing to look at:
+the reason is published above so you can judge it yourself rather than take the label as a finding.</p>
 {% endblock %}

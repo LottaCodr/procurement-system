@@ -1,148 +1,108 @@
-{% extends "base.html" %}
-{% block title %}Registration — Step {{ step }} of {{ steps_total }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Supplier registration — step {{ step }} of {{ steps_total }}{% endblock %}
+
 {% block content %}
-<nav class="crumb"><a href="/register/">Registration</a> &rsaquo; Step {{ step }}</nav>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/register/">Supplier registration</a></li>
+  <li><span aria-current="page">Step {{ step }} of {{ steps_total }}</span></li>
+</ol></nav>
 
-<div class="card">
-  <h1>Supplier Registration — Step {{ step }} of {{ steps_total }}</h1>
-  {% if draft %}
-  <p class="muted">Draft token: <code>{{ draft.draft_token }}</code> — save this to resume later.</p>
-  {% endif %}
+<header class="page-head page-head--ruled">
+  <h1>Register your company</h1>
+  <p class="lede">Step {{ step }} of {{ steps_total }}.
+  {% if draft %}Your draft was last saved {{ draft.updated_at|relative }} —
+    <span class="tiny">reference {{ draft.draft_token|truncatechars:10 }}…, status {{ draft.get_status_display }}.</span>
+  {% else %}Nothing is published until you submit, and your draft link is private.{% endif %}</p>
+</header>
 
-  <div class="progress">
-    {% for i in "123456" %}
-    <span class="step-dot {% if forloop.counter < step %}done{% elif forloop.counter == step %}active{% endif %}">{{ forloop.counter }}</span>
-    {% endfor %}
-  </div>
+<ol class="steps" aria-label="Registration progress">
+  {% for number, title in steps %}
+    <li {% if number == step %}aria-current="step"{% elif number < step %}data-done="1"{% endif %}>
+      <strong>{{ number }}. {{ title }}</strong>
+    </li>
+  {% endfor %}
+</ol>
 
-  <form id="reg-form" class="form-stacked">
-    {% csrf_token %}
-
-    {% if step == 1 %}
-    <fieldset>
-      <legend>Company identity</legend>
-      <label>Company legal name <input name="company_name" value="{{ draft.company_name|default:'' }}" required></label>
-      <label>RC number (CAC) <input name="rc_number" value="{{ draft.rc_number|default:'' }}" placeholder="RC-1234567" required></label>
-      <label>TIN <input name="tin" value="{{ draft.tin|default:'' }}" placeholder="12345678-0001" required></label>
-      <label>PenCom certificate ref <input name="pencom" value="{{ draft.pencom|default:'' }}"></label>
-      <label>Year incorporated <input type="number" name="year_incorporated" value="{{ draft.year_incorporated|default:'' }}" min="1900" max="2026"></label>
-      <label>Website <input type="url" name="website" value="{{ draft.website|default:'' }}"></label>
-    </fieldset>
-
-    {% elif step == 2 %}
-    <fieldset>
-      <legend>Contact details</legend>
-      <label>Contact person full name <input name="full_name" value="{{ draft.full_name|default:'' }}" required></label>
-      <label>Email <input type="email" name="email" value="{{ draft.email|default:'' }}" required></label>
-      <label>Phone (with country code) <input name="phone" value="{{ draft.phone|default:'' }}" placeholder="+234 800 000 0000" required></label>
-      <label>Address <textarea name="address" required>{{ draft.address|default:'' }}</textarea></label>
-      <label>State <input name="state" value="{{ draft.state|default:'Taraba' }}"></label>
-      <label>LGA <input name="lga" value="{{ draft.lga|default:'' }}"></label>
-    </fieldset>
-
-    {% elif step == 3 %}
-    <fieldset>
-      <legend>Certificates &amp; documents</legend>
-      <p>Upload your CAC, TIN, and PenCom certificates. Documents with expiry dates will be re-verified annually.</p>
-      {% if documents %}
-      <table class="data">
-        <thead><tr><th>Type</th><th>File</th><th>Expiry</th><th>Status</th></tr></thead>
-        <tbody>
-        {% for d in documents %}
-        <tr>
-          <td>{{ d.get_kind_display }}</td>
-          <td>{{ d.filename }} ({{ d.size_bytes|filesizeformat }})</td>
-          <td>{{ d.expiry_date|date:"d M Y"|default:"—" }}</td>
-          <td><span class="badge">{{ d.verification_status }}</span></td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% endif %}
-      <div class="upload-area">
-        <p>Document upload is wired to the API at <code>POST /api/wf/vendor/register/{token}/document</code>.
-        In production, this uses the resumable upload protocol with SHA-256 verification.</p>
-      </div>
-    </fieldset>
-
-    {% elif step == 4 %}
-    <fieldset>
-      <legend>Capability &amp; classification</legend>
-      <label>Category
-        <select name="category">
-          {% for code, label in categories %}
-          <option value="{{ code }}" {% if draft.category == code %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>Scope
-        <select name="scope">
-          {% for code, label in scopes %}
-          <option value="{{ code }}" {% if draft.scope == code %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>Number of similar contracts completed <input type="number" name="similar_contracts_n" value="{{ draft.similar_contracts_n|default:0 }}" min="0"></label>
-      <label>Annual turnover (₦) <input type="number" name="annual_turnover" value="{{ draft.annual_turnover|default:'' }}" step="0.01"></label>
-    </fieldset>
-
-    {% elif step == 5 %}
-    <fieldset>
-      <legend>Beneficial ownership (≥5% shareholders)</legend>
-      <p>Disclose all persons or entities holding 5% or more of shares. This is published to prevent bid-rigging through common ownership.</p>
-      {% if owners %}
-      <table class="data">
-        <thead><tr><th>Owner</th><th>RC (if corporate)</th><th>Share %</th><th>PEP</th></tr></thead>
-        <tbody>
-        {% for o in owners %}
-        <tr>
-          <td>{{ o.owner_name }}</td>
-          <td>{{ o.owner_rc|default:"—" }}</td>
-          <td>{{ o.pct }}%</td>
-          <td>{{ o.is_pep|yesno:"Yes,No" }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% endif %}
-      <p>Owners are added via <code>POST /api/wf/vendor/register/{token}/owner</code>.</p>
-      <label>Related party declaration
-        <textarea name="related_party_declaration" placeholder="Declare any relationships to government officials (PPA ss.18-19)">{{ draft.related_party_declaration|default:'' }}</textarea>
-      </label>
-      <label><input type="checkbox" name="pep_flag" {% if draft.pep_flag %}checked{% endif %}> A politically exposed person is among our owners</label>
-    </fieldset>
-
-    {% elif step == 6 %}
-    <fieldset>
-      <legend>Review &amp; submit</legend>
-      <dl>
-        <dt>Company</dt><dd>{{ draft.company_name|default:"—" }} (RC {{ draft.rc_number|default:"—" }})</dd>
-        <dt>Contact</dt><dd>{{ draft.full_name|default:"—" }} — {{ draft.email|default:"—" }}</dd>
-        <dt>Phone</dt><dd>{{ draft.phone|default:"—" }}</dd>
-        <dt>Category</dt><dd>{{ draft.category|default:"—" }}</dd>
-        <dt>Documents</dt><dd>{{ documents|length }} uploaded</dd>
-        <dt>Owners declared</dt><dd>{{ owners|length }}</dd>
-      </dl>
-
-      {% if ready %}
-      <div class="alert bad">
-        <strong>Cannot submit yet.</strong> Missing: {{ ready|join:", " }}.
-      </div>
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="step-h">
+      <h2 id="step-h">What this step needs</h2>
+      {% if step == 1 %}
+        <p>Your company's legal identity, exactly as it appears on the CAC certificate. The legal name is
+        published on the supplier register, so it must be the registered name rather than a trading name.</p>
+      {% elif step == 2 %}
+        <p>A named contact who answers. Notices go to this person by email and SMS, and it is the address
+        the Bureau will use if it needs to reach you about a bid.</p>
+      {% elif step == 3 %}
+        <p>Your certificates, with expiry dates. The platform will suspend bidding if a certificate lapses,
+        so entering the real date protects you from losing a bid to a paperwork surprise.</p>
+      {% elif step == 4 %}
+        <p>What you are capable of: the number of similar contracts you have delivered, your annual
+        turnover, and the classification you are applying for.</p>
+      {% elif step == 5 %}
+        <p>Who owns the company. Anyone with 5% or more must be listed. If an owner is a politically
+        exposed person, that is declared here and published on your profile — declaring it is not a
+        disqualification, and concealing it is.</p>
       {% else %}
-      <label><input type="checkbox" name="accept_terms" required> I confirm all information is accurate and accept the platform's terms of use.</label>
+        <p>Check everything, then submit. You will receive a reference number and an itemised list of what
+        the reviewer still needs, if anything.</p>
       {% endif %}
-    </fieldset>
+      <p class="tiny">Saving is not submitting. Nothing appears in the public register until step 6 is
+      submitted and reviewed.</p>
+    </section>
+
+    {% if ready %}
+      <div class="callout callout--warn">
+        <span class="callout__title">Still outstanding before you can submit</span>
+        <ul>
+          {% for item in ready %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+        <p>Each item names what is missing rather than failing silently. Nothing you have already typed is
+        lost.</p>
+      </div>
     {% endif %}
 
-    <div class="form-actions">
-      {% if step > 1 %}<a href="?step={{ step|add:'-1' }}" class="btn">Previous</a>{% endif %}
-      {% if step < steps_total %}<button type="submit" class="btn primary">Save &amp; continue</button>{% endif %}
-      {% if step == steps_total and not ready %}
-      <button type="submit" class="btn primary" disabled>Submit registration</button>
-      {% elif step == steps_total %}
-      <button type="submit" class="btn primary">Submit registration</button>
+    <section aria-labelledby="docs-h">
+      <h2 id="docs-h">Documents attached ({{ documents|length }})</h2>
+      {% if documents %}
+        <ul>
+          {% for d in documents %}
+            <li>{{ d.get_kind_display|default:d.kind }} — {{ d.title|default:"document" }}
+              {% if d.expires_at %}<span class="tiny">expires {{ d.expires_at|shortdate }}</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No document has been attached yet. Three are required: CAC, TIN and PenCom.</p>
       {% endif %}
+    </section>
+
+    {% if owners %}
+      <section aria-labelledby="owners-h">
+        <h2 id="owners-h">Beneficial owners ({{ owners|length }})</h2>
+        <ul>
+          {% for o in owners %}
+            <li>{{ o.owner_name|default:o.name }} — {{ o.pct|pct }}
+              {% if o.is_pep %}<span class="tag tag--warn">politically exposed</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  </div>
+
+  <aside aria-label="Registration help">
+    <div class="card">
+      <h2>Stuck?</h2>
+      <p>{% if CONTACT_PHONE_REAL %}Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>
+      during {{ SUPPORT_HOURS }}, or visit{% else %}Visit{% endif %} an
+      <a href="/tenders/agent-desk/">assisted bidding desk</a>. Desk staff can enter the form
+      with you; they cannot submit on your behalf or see your password.</p>
     </div>
-  </form>
+    <div class="card">
+      <h2>Already registered?</h2>
+      <p><a href="/tenders/suppliers/">Check what the register shows about your company</a> — including
+      whether your certificates are recorded as current.</p>
+    </div>
+  </aside>
 </div>
 {% endblock %}

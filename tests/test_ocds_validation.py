@@ -3,9 +3,11 @@
 Every OCDS release must validate against the project's OCDS schema.
 This is tested in CI to prevent silent corruption of open data.
 """
-import pytest
 import json
+
+import pytest
 from django.test import Client
+from django.utils import timezone
 
 
 @pytest.mark.django_db
@@ -136,5 +138,3 @@ def test_ocds_dates_are_strings():
         assert isinstance(date_str, str), \
             f"{tender.ocid}: date must be a string, got {type(date_str)}"
 
-
-from django.utils import timezone

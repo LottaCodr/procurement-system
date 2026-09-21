@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Page not found{% endblock %}
+{% block content %}
+<header class="page-head page-head--ruled">
+  <h1>That page does not exist</h1>
+  <p class="lede">The link you followed points to nothing on this server. If it used to work, that is our
+  fault and we treat a broken public record as data loss — the published URL map lists what replaced what.</p>
+</header>
+<div class="grid grid--2">
+  <div class="card">
+    <h3>Likely you wanted one of these</h3>
+    <ul>
+      <li><a href="/tenders/">The tender register</a></li>
+      <li><a href="/tenders/?open=1&amp;sort=closing">Tenders open for bids</a></li>
+      <li><a href="/tenders/awards/">The award register</a></li>
+      <li><a href="/tenders/open-data/">Open data and API</a></li>
+      <li><a href="/redirects">Where retired URLs now point</a></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Search instead</h3>
+    <form method="get" action="/tenders/" role="search">
+      <div class="field">
+        <label class="field__label" for="nf-q">Reference, title, agency or supplier</label>
+        <input id="nf-q" name="q" type="search" autocomplete="off">
+      </div>
+      <p><button class="btn" type="submit">Search the register</button></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

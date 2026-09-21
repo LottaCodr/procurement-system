@@ -45,10 +45,11 @@ import hmac
 import json
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+import pyotp
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -67,6 +68,34 @@ class KeyMaterial:
 
 def _fernet_key() -> bytes:
     return Fernet.generate_key()
+
+
+def report_fernet_key() -> bytes:
+    """Deterministic, deployment-scoped key for whistleblower report bodies.
+
+    `_fernet_key()` above deliberately generates a *fresh* key per call — it is
+    the per-tender sealing key, and a random key is the right thing there. Using
+    it for storage-at-rest would be a data-loss bug: every read would need the
+    key that produced the write. This key is derived from the deployment secret
+    instead, so any web process can decrypt what any other web process wrote.
+
+    Production note: rotate this by re-encrypting, and prefer holding the secret
+    in the state's own KMS rather than in the application environment.
+    """
+    material = hashlib.sha256(f"{settings.SECRET_KEY}:wb-report:v1".encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(material)
+
+
+def encrypt_report_body(body: str) -> str:
+    return Fernet(report_fernet_key()).encrypt(body.encode("utf-8")).decode("ascii")
+
+
+def decrypt_report_body(ciphertext: str) -> str:
+    """Used by the integrity unit's tooling, not by the public web views."""
+    try:
+        return Fernet(report_fernet_key()).decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise SealedBidError("Report ciphertext is not authentic for this deployment key") from exc
 
 
 def _custodian_keypair(custodian: str):
@@ -152,13 +181,10 @@ def verify_receipt(commitment_hash: str, tender_ocid: str, submitted_at: datetim
 
 
 # ---- TOTP helpers (MFA) ---------------------------------------------------
-import pyotp
-
-
 def provision_totp(name: str, email: str) -> tuple[str, str]:
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(name=email, issuer_name=f"Taraba State Procurement")
+    provisioning_uri = totp.provisioning_uri(name=email, issuer_name="Taraba State Procurement")
     return secret, provisioning_uri
 
 

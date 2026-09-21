@@ -1,79 +1,114 @@
-{% extends "base.html" %}
-{% load core_tags %}
-
-{% block title %}MDA Utilization Dashboard - {{ block.super }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Ministries, departments and agencies — {{ year }} utilisation{% endblock %}
+{% block description %}What each {{ STATE_NAME }} ministry, department and agency spent in {{ year }}: advertised value, awards, direct-procurement share and contract completion.{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-6">MDA Utilization Dashboard - {{ current_year }}</h1>
-    
-    <div class="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 class="text-xl font-semibold mb-4">Aggregate Totals</h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-gray-50 p-4 rounded">
-                <div class="text-2xl font-bold text-green-600">₦{{ totals.total_value|floatformat:0 }}</div>
-                <div class="text-sm text-gray-600">Total Tender Value</div>
-            </div>
-            <div class="bg-gray-50 p-4 rounded">
-                <div class="text-2xl font-bold text-blue-600">{{ totals.total_tenders }}</div>
-                <div class="text-sm text-gray-600">Total Tenders</div>
-            </div>
-            <div class="bg-gray-50 p-4 rounded">
-                <div class="text-2xl font-bold text-orange-600">{{ totals.direct_pct|floatformat:1 }}%</div>
-                <div class="text-sm text-gray-600">Direct Procurement</div>
-            </div>
-            <div class="bg-gray-50 p-4 rounded">
-                <div class="text-2xl font-bold text-purple-600">{{ totals.local_pct|floatformat:1 }}%</div>
-                <div class="text-sm text-gray-600">Local Content</div>
-            </div>
-        </div>
-    </div>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">MDAs</span></li>
+</ol></nav>
 
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tenders</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Direct %</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Local %</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Awards</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Completion</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for m in mda_metrics %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="{% url 'mda-detail' m.agency.code %}" class="text-green-600 hover:text-green-800">
-                            {{ m.agency.code }} - {{ m.agency.name|truncatewords:5 }}
-                        </a>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">{{ m.total_tenders }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">₦{{ m.total_value|floatformat:0 }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm {% if m.direct_pct > 20 %}text-red-600 font-semibold{% endif %}">
-                        {{ m.direct_pct|floatformat:1 }}%
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm {% if m.local_pct < 30 %}text-orange-600{% else %}text-green-600{% endif %}">
-                        {{ m.local_pct|floatformat:1 }}%
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">{{ m.total_awards }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">{{ m.completion_rate|floatformat:0 }}%</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">No data available</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<header class="page-head page-head--ruled">
+  <h1>Who is spending, and how</h1>
+  <p class="lede">Per-agency utilisation for {{ year }}, published monthly and unredacted. Every figure
+  below is a sum over the same tender register you can filter yourself — nothing here is reported by the
+  agency about itself.</p>
+  <div class="cluster">
+    <span class="tag tag--plain">{{ totals.mdas }} MDA{{ totals.mdas|pluralize }} with activity</span>
+    <span class="tag tag--plain">{{ totals.value|naira }} advertised</span>
+    <span class="tag tag--plain">{{ totals.awarded|naira }} awarded</span>
+    <span class="tag {% if totals.direct_pct > direct_alarm %}tag--flag{% else %}tag--closed{% endif %}">
+      {{ totals.direct_pct|pct }} by direct procurement</span>
+  </div>
+</header>
 
-    <div class="mt-6 text-sm text-gray-600">
-        <p><strong>Direct %:</strong> Percentage of total value awarded via direct procurement (red flag if >20%)</p>
-        <p><strong>Local %:</strong> Percentage of awards to Taraba-based suppliers (target: ≥30%)</p>
-        <p><strong>Completion:</strong> Percentage of contracts completed on time</p>
+{% if totals.direct_pct > direct_alarm %}
+  <div class="callout callout--warn">
+    <span class="callout__title">Direct procurement is {{ totals.direct_pct|pct }} of advertised value across the state</span>
+    <p>Direct procurement is lawful only with a published written justification, because it is the route
+    that removes competition. The rule applied here is {{ direct_alarm|pct }}, published so the threshold
+    can be argued about in public rather than applied in private.</p>
+  </div>
+{% endif %}
+
+<form class="filters" method="get" action="/tenders/mdas/" aria-labelledby="mda-filter-heading">
+  <h2 id="mda-filter-heading" class="visually-hidden">Choose a year</h2>
+  <div class="filters__grid">
+    <div class="field">
+      <label class="field__label" for="mda-year">Financial year of activity</label>
+      <input id="mda-year" name="year" type="number" inputmode="numeric" min="2000" max="2100"
+             value="{{ year }}" class="field__input--narrow">
+      <span class="field__hint">Figures are all-time within the chosen year; month by month is on each MDA page.</span>
     </div>
-</div>
+  </div>
+  <div class="filters__actions"><button class="btn" type="submit">Show this year</button></div>
+</form>
+
+{% if rows %}
+  <section aria-labelledby="mda-table-h">
+    <h2 id="mda-table-h">Agencies, ranked by advertised value</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="MDA utilisation, scrollable">
+      <table class="data data--sticky-first">
+        <caption>Utilisation for {{ year }}. "Direct" is the share of advertised value put through
+        non-competitive procurement; "local" is the share of awarded value that went to Taraba-domiciled
+        firms.</caption>
+        <thead>
+          <tr>
+            <th scope="col">MDA</th>
+            <th scope="col" class="num">Advertised</th>
+            <th scope="col" class="num hide-xs">Processes</th>
+            <th scope="col" class="num">Awarded</th>
+            <th scope="col" class="num hide-xs">Awards</th>
+            <th scope="col">Direct share</th>
+            <th scope="col" class="hide-xs">Local share</th>
+            <th scope="col" class="hide-xs">Contracts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <th scope="row">
+                <a href="/tenders/mdas/{{ r.agency.code }}/">{{ r.agency.name }}</a>
+                <span class="tiny">{{ r.agency.code }}</span>
+              </th>
+              <td class="num">{{ r.value|naira }}</td>
+              <td class="num hide-xs">{{ r.tenders }}</td>
+              <td class="num">{{ r.awarded|naira }}</td>
+              <td class="num hide-xs">{{ r.awards }}</td>
+              <td>
+                <span class="cluster">
+                  {% bar r.direct_pct %}<span class="num">{{ r.direct_pct|pct }}</span>
+                  {% if r.direct_alarm %}<span class="tag tag--flag">above {{ direct_alarm|pct }}</span>{% endif %}
+                </span>
+              </td>
+              <td class="hide-xs">{{ r.local_pct|pct }} <span class="tiny">({{ r.local_awards }} of {{ r.awards }})</span></td>
+              <td class="hide-xs">{{ r.contracts }} <span class="tiny">{{ r.contracted|naira }} signed</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">All agencies</th>
+            <td class="num">{{ totals.value|naira }}</td>
+            <td class="num hide-xs">{{ totals.tenders }}</td>
+            <td class="num">{{ totals.awarded|naira }}</td>
+            <td class="num hide-xs">{{ totals.awards }}</td>
+            <td>{{ totals.direct_pct|pct }}</td>
+            <td class="hide-xs">{{ totals.local_pct|pct }}</td>
+            <td class="hide-xs">{{ totals.contracts }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="table-note">
+      <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+      <span><a href="/api/v1/stats">Same figures as JSON</a> · data as at {% now "j M Y, H:i" %} WAT</span>
+    </p>
+  </section>
+{% else %}
+  <div class="empty">
+    <h3>No agency has published activity in {{ year }}</h3>
+    <p>The register carries nothing for that year. Try another year, or read the register unfiltered —
+    an empty year is reported as an empty year, never dressed up with last year's figures.</p>
+  </div>
+{% endif %}
 {% endblock %}

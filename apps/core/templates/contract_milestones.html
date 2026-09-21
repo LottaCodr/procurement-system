@@ -1,35 +1,55 @@
-{% extends "base.html" %}
-{% block title %}Contract milestones — {{ c.reference }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Milestones — contract {{ contract.reference }}{% endblock %}
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/contracts/">Contracts</a> &rsaquo;
-  <a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a> &rsaquo; Milestones
-</nav>
-<div class="card">
-  <h1>Milestones — {{ c.reference }}</h1>
-  <p class="muted">{{ c.award.tender.title }} — {{ c.award.bid.supplier.legal_name }}</p>
-</div>
-{% for m in milestones %}
-<div class="card">
-  <div class="grid-2">
-    <div>
-      <h3>{{ m.seq }}. {{ m.title }}</h3>
-      <p>{{ m.description }}</p>
-      <dl>
-        <dt>Planned</dt><dd>{{ m.planned_date|date:"d M Y" }}</dd>
-        <dt>Actual</dt><dd>{{ m.actual_date|date:"d M Y"|default:"—" }}</dd>
-        <dt>Value</dt><dd>₦{{ m.value|floatformat:2 }}</dd>
-        <dt>Status</dt><dd><span class="badge {% if m.status == 'ACCEPTED' %}ok{% elif m.status == 'OVERDUE' %}bad{% endif %}">{{ m.get_status_display }}</span></dd>
-        {% if m.days_late > 0 %}<dt>Days late</dt><dd>{{ m.days_late }}</dd>{% endif %}
-      </dl>
-    </div>
-    <div>
-      {% if m.inspection_note %}<h4>Inspection note</h4><p>{{ m.inspection_note }}</p>{% endif %}
-      {% if m.inspected_by %}<p class="tiny">Inspected by {{ m.inspected_by.get_full_name|default:m.inspected_by.username }}</p>{% endif %}
-    </div>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/contracts/">Contracts</a></li>
+  <li><a href="/tenders/contracts/{{ contract.reference }}/">{{ contract.reference }}</a></li>
+  <li><span aria-current="page">Milestones</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Delivery milestones</h1>
+  <p class="lede">{{ contract.award.tender.title }} — {{ contract.award.bid.supplier.legal_name }}.
+  Payments against this contract are blocked until the milestone they belong to is verified against the
+  contract's own deliverables.</p>
+</header>
+
+{% if milestones %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Contract milestones, scrollable">
+    <table class="data">
+      <caption>Milestones for {{ contract.reference }}, in sequence. Each links to the evidence recorded
+      against it — there is no payment without an evidence record.</caption>
+      <thead>
+        <tr>
+          <th scope="col">#</th><th scope="col">Milestone</th><th scope="col">Due</th>
+          <th scope="col">State</th><th scope="col" class="num">Value</th>
+          <th scope="col">Verified by</th><th scope="col">Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for m in milestones %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <th scope="row">{{ m.title }}{% if m.description %}<span class="tiny">{{ m.description }}</span>{% endif %}</th>
+          <td>{{ m.planned_date|shortdate }}{% if m.days_late %}<span class="tag tag--flag">{{ m.days_late }} days late</span>{% endif %}</td>
+          <td>{{ m.status|status_tag }}</td>
+          <td class="num">{{ m.value|naira }}</td>
+          <td>{% if m.inspected_by %}{{ m.inspected_by.get_full_name|default:m.inspected_by.username }}{% else %}<span class="muted">not verified</span>{% endif %}</td>
+          <td>{% if m.inspection_note %}{{ m.inspection_note }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
-{% empty %}
-<div class="card"><p class="muted">No milestones defined for this contract.</p></div>
-{% endfor %}
+  <p class="table-note">Overdue milestones are published, not quietly rescheduled. A reschedule appears as
+  a new due date in the history.</p>
+{% else %}
+  <div class="empty">
+    <h3>No milestones recorded for this contract</h3>
+    <p>That is a gap worth naming: a contract of <strong>{{ contract.value|naira }}</strong> with no
+    delivery milestones gives the state no checkpoint before the final payment.</p>
+    <p><a href="/tenders/contracts/{{ contract.reference }}/">Back to the contract</a></p>
+  </div>
+{% endif %}
 {% endblock %}

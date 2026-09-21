@@ -9,7 +9,6 @@ Phase 4: Contract implementation (milestones, variations, guarantees,
 """
 from __future__ import annotations
 
-from datetime import timedelta
 from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -69,7 +68,7 @@ def form_evaluation_committee(tender, members: list[dict], actor: str) -> list:
 def enter_score(bid, criterion, evaluator, raw: Decimal, narrative: str) -> object:
     """Enter a score for one criterion on one bid. Every score requires a narrative
     justification. The score is immutable once saved — corrections are new events."""
-    from procurement.models import Score, Tender, Criterion
+    from procurement.models import Score, Tender
 
     if bid.tender.status in (Tender.Status.PUBLISHED, Tender.Status.CLARIFYING,
                               Tender.Status.CLOSED, Tender.Status.DRAFT):
@@ -129,7 +128,7 @@ def record_dissent(score, evaluator, note: str) -> object:
 def compute_bid_totals(tender) -> dict:
     """Compute total weighted scores for all bids. Returns a sorted dict of
     bid_id -> total_score, for the evaluation report."""
-    from procurement.models import Bid, Score
+    from procurement.models import Bid
 
     results = {}
     for bid in tender.bids.filter(
@@ -152,7 +151,6 @@ def compute_bid_totals(tender) -> dict:
 def publish_evaluation_report(tender, summary: str, methodology: str, actor: str) -> object:
     """Publish the evaluation report. The report is public: scorecards, dissent,
     and recommendation are all visible on the tender page."""
-    from workflow.models import EvaluationReport
     from workflow.models_phases import EvaluationReport as ER
     import hashlib
 
@@ -161,7 +159,7 @@ def publish_evaluation_report(tender, summary: str, methodology: str, actor: str
     content = f"Summary: {summary}\nMethodology: {methodology}\nScores: {scores}"
     sha = hashlib.sha256(content.encode()).hexdigest()
 
-    from workflow.models import DissentNote, AwardRecommendation
+    from workflow.models import DissentNote
     dissent_count = DissentNote.objects.filter(score__bid__tender=tender).count()
 
     report = ER.objects.create(
@@ -191,7 +189,6 @@ def route_approval(tender, actor: str) -> object:
     """Determine the required approving authority based on the tender's value
     and the threshold rules. Creates an ApprovalRouting record."""
     from workflow.models_phases import ApprovalRouting
-    from procurement.models import Tender
 
     amount = tender.award_value() or tender.est_value or Decimal("0")
     required = ApprovalRouting.determine_body(amount, tender.rule)
@@ -223,7 +220,6 @@ def approve_routing(tender, approver, approval_ref: str = "") -> object:
     from workflow.models_phases import ApprovalRouting
 
     routing = tender.approval_routing
-    from procurement.models_party import ThresholdRule
     if tender.rule:
         body = ApprovalRouting._match_body(tender.rule.approval_body)
     else:
@@ -373,18 +369,15 @@ def propose_variation(contract, title: str, reason: str, amount_change: Decimal,
 
 def approve_variation(variation, approver) -> object:
     """Approve a variation. Creates a ContractEvent and updates the risk flags."""
-    from procurement.models import ContractEvent
 
     variation.status = "APPROVED"
     variation.approved_by = approver
     variation.approved_at = timezone.now()
     variation.save()
 
-    # Update the contract's total value
+    # The contract value and its variation percentage are derived from the events
+    # table (`Contract.variation_pct`), so there is nothing to store here.
     contract = variation.contract
-    total_variations = contract.events.filter(kind="VARIATION").aggregate(
-        total=__import__("django.db.models", fromlist=["Sum"]).Sum("amount")
-    )["total"] or Decimal("0")
 
     append(
         aggregate=f"procurement.Contract.{contract.pk}",

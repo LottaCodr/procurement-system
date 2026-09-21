@@ -1,121 +1,496 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}{{ t.ocid }} &mdash; {{ t.title }}{% endblock %}
+{% block title %}{{ t.ocid }} — {{ t.title }}{% endblock %}
+{% block description %}{{ t.title }} ({{ t.ocid }}): {{ t.agency.name }}. Estimate {{ t.est_value|naira }}, method {{ t.get_method_display }}, status {{ t.get_status_display }}. Documents, bids, evaluation, award and full ledger history.{% endblock %}
+
 {% block content %}
-<p class="tiny"><a href="/tenders/">&larr; all tenders</a></p>
-<h1>{{ t.title }}</h1>
-<p class="muted">{{ t.ocid }}{% if t.reference %} &middot; {{ t.reference }}{% endif %} &middot; {{ t.agency.code }} &middot; {{ t.status|status_tag }}</p>
+<nav aria-label="Breadcrumb">
+  <ol class="crumbs">
+    <li><a href="/tenders/">Tender register</a></li>
+    <li><a href="/tenders/?agency={{ t.agency.code }}">{{ t.agency.code }}</a></li>
+    <li><span aria-current="page">{{ t.ocid }}</span></li>
+  </ol>
+</nav>
 
-{% if t.status == "FROZEN" %}<div class="warnbox"><strong>Frozen by objection.</strong> This procedure is suspended pending an independent panel decision{% if t.frozen_until %} until {{ t.frozen_until|shortdate }}{% endif %}. Bids and evaluation state are preserved exactly as they were.</div>{% endif %}
-{% if not ocds_ok %}<div class="badbox"><strong>OCDS validation failure.</strong> This record cannot be released as open data until fixed: <code>{{ ocds_error }}</code></div>{% endif %}
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ t.agency.name }}{% if t.reference %} · reference {{ t.reference }}{% endif %}</p>
+  <h1>{{ t.title }}</h1>
+  <div class="cluster">
+    {{ t.status|status_tag }}
+    <span class="tag tag--plain">{{ t.get_method_display }}</span>
+    {% if t.submission_close_at %}{{ t.submission_close_at|deadline }}{% endif %}
+    {% if t.is_immutable %}<span class="tag tag--plain">sealed from {{ t.immutable_from|shortdate }}</span>{% endif %}
+  </div>
+</header>
 
-<div class="card" style="padding:0.5rem 1rem">
-  <a href="/tenders/{{ t.ocid }}/bid/" class="btn">Submit bid</a>
-  {% if reveal %}<a href="/tenders/{{ t.ocid }}/evaluation/" class="btn">Evaluation workspace</a>{% endif %}
-  <a href="/tenders/{{ t.ocid }}/objections/" class="btn">Objections</a>
-  <a href="/tenders/{{ t.ocid }}/debriefs/" class="btn">Debriefs</a>
+{% if t.status == "FROZEN" %}
+<div class="callout callout--warn" role="status">
+  <span class="callout__title">This procedure is frozen by an objection</span>
+  <p>It is suspended pending a decision by an independent panel{% if t.frozen_until %}, until
+  <strong>{{ t.frozen_until|datetime_wat }}</strong>{% endif %}. Bids, scores and evaluation records are
+  preserved exactly as they were when the freeze started.</p>
+  <p><a href="/tenders/{{ t.ocid }}/objections/">Read the objections on this process</a></p>
 </div>
+{% endif %}
 
-<div class="grid c4">
-  <div class="kpi"><b>{{ t.est_value|naira }}</b><span>published estimate (disclosed by law of this platform)</span></div>
-  <div class="kpi"><b>{{ bids|length }}</b><span>bids received</span></div>
-  <div class="kpi"><b>{{ t.method }}</b><span>method &middot; {{ t.approval_body|default:"no board approval needed" }}</span></div>
-  <div class="kpi"><b>{{ t.submission_close_at|deadline }}</b><span>submission deadline</span></div>
+{% if not ocds_ok %}
+<div class="callout callout--danger" role="alert">
+  <span class="callout__title">This record does not currently validate as open data</span>
+  <p>The platform refuses to publish an OCDS release it cannot validate, rather than publishing a
+  malformed one. The failure is: <code>{{ ocds_error }}</code>. Records stay on the site; the machine-readable
+  release is withheld until the data is correct.</p>
 </div>
+{% endif %}
 
-<div class="card">
-  <h3>What you need to know before you bid</h3>
-  <dl class="kv">
-    <dt>Published</dt><dd>{{ t.published_at|shortdate }} &middot; immutable from {{ t.immutable_from|shortdate }} (after publication, changes are new document versions, never edits)</dd>
-    <dt>Clarifications close</dt><dd>{{ t.qa_close_at|shortdate }} &mdash; every question and answer is published to all bidders at once; there are no private answers. A material clarification within 7 days of closing extends the deadline automatically.</dd>
-    <dt>Bid opening</dt><dd>{{ t.opening_at|shortdate }} at {{ t.opening_venue }} &mdash; you may attend. Your bid&rsquo;s commitment hash is public the moment you submit, so a substitution after the deadline is provable.</dd>
-    <dt>Bid security</dt><dd>{{ t.bid_security_amount|naira }}{% if t.rule %} &middot; {{ t.rule.bid_security_pct }}% cap applied{% endif %}</dd>
-    <dt>Estimate to award</dt><dd>{% if t.total_value and t.est_value %}{% widthratio t.total_value t.est_value 100 %}% of estimate{% else %}not yet awarded{% endif %}</dd>
-    <dt>Local content set-aside</dt><dd>{{ t.reserved_for_local_pct }}% Taraba-domiciled &middot; {{ t.sme_set_aside_pct }}% SME set-aside</dd>
-    {% if t.no_objection_ref %}<dt>No-objection ref</dt><dd>{{ t.no_objection_ref }}</dd>{% endif %}
-    {% if t.budget_line %}<dt>Budget line</dt><dd>{{ t.budget_line.fy }} &middot; {{ t.budget_line.project_code }} &middot; {{ t.budget_line.description }} ({{ t.budget_line.amount|naira }} appropriated)</dd>{% endif %}
-  </dl>
+<div class="grid grid--side">
+  <div>
+    <section id="key-facts" aria-labelledby="key-facts-h">
+      <h2 id="key-facts-h">What you need to know before you bid</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Published estimate</dt>
+          <dd>{{ t.est_value|naira_exact }}
+            <span class="tiny">Disclosed on purpose: a secret estimate is the information a corrupt
+            official sells. There is nothing to leak that is not already here.</span></dd>
+          <dt>Bids received</dt>
+          <dd>{{ bids|length }}
+            {% if not reveal %}<span class="tiny">— sealed until the public opening; only the submission
+            count and commitment hashes are shown.</span>{% endif %}</dd>
+          <dt>Clarifications close</dt>
+          <dd>{{ t.qa_close_at|datetime_wat }}
+            <span class="tiny">Every question and its answer is published to all bidders at once. A
+            material clarification within seven days of closing extends the deadline automatically.</span></dd>
+          <dt>Bid opening</dt>
+          <dd>{{ t.opening_at|datetime_wat }}
+            <span class="tiny">{{ t.opening_venue|default:"Venue to be announced" }} — you may attend.
+            Your bid's commitment hash is published the moment you submit, so substituting a bid after
+            the deadline is provable.</span></dd>
+          <dt>Bid security</dt>
+          <dd>{{ t.bid_security_amount|naira_exact }}
+            {% if t.rule %}<span class="tiny">capped by rule at {{ t.rule.bid_security_pct }}% of the
+            estimate</span>{% endif %}</dd>
+          <dt>Approval</dt>
+          <dd>{{ t.approval_body|default:"No board approval required at this value" }}
+            {% if t.no_objection_ref %}<span class="tiny">no-objection reference {{ t.no_objection_ref }}</span>{% endif %}</dd>
+          <dt>Local content</dt>
+          <dd>{{ t.reserved_for_local_pct }}% reserved for Taraba-domiciled firms ·
+              {{ t.sme_set_aside_pct }}% SME set-aside</dd>
+          {% if t.budget_line %}
+          <dt>Budget line</dt>
+          <dd>{{ t.budget_line.fy }} · {{ t.budget_line.project_code }} — {{ t.budget_line.description }}
+            <span class="tiny">{{ t.budget_line.amount|naira }} appropriated; this is what the money is
+            being spent on, traceable back to the appropriation.</span></dd>
+          {% endif %}
+        </dl>
+      </div>
+    </section>
+
+    <section id="timeline" aria-labelledby="timeline-h">
+      <h2 id="timeline-h">Where this process has got to</h2>
+      <ol class="timeline">
+        {% for s in stages %}
+          <li data-state="{{ s.state }}">
+            <span class="timeline__label">{{ s.label }}
+              {% if s.state == "done" %}<span class="visually-hidden">— completed</span>{% elif s.state == "current" %}<span class="visually-hidden">— current stage</span>{% else %}<span class="visually-hidden">— not yet reached</span>{% endif %}
+            </span>
+            {% if s.when %}<span class="timeline__meta">{{ s.when|datetime_wat }}</span>
+            {% else %}<span class="timeline__meta">{{ s.blurb }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+      {% if t.status == "TERMINATED" %}
+        <div class="callout callout--danger">This process was terminated without an award. The reason is
+        recorded in the ledger below and cannot be edited.</div>
+      {% endif %}
+    </section>
+
+    <section id="documents" aria-labelledby="documents-h">
+      <h2 id="documents-h">Documents</h2>
+      {% if t.documents.all %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tender documents, scrollable">
+          <table class="data">
+            <caption>Every published document version, with the SHA-256 digest of the file. A new
+            version is a new row — earlier versions stay visible, because a specification that changed
+            after bidders read it is exactly the thing that must not be erasable.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Version</th>
+                <th scope="col">Document</th>
+                <th scope="col" class="hide-xs">Digest (SHA-256)</th>
+                <th scope="col" class="hide-xs">Published</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in t.documents.all %}
+                {% if d.published %}
+                <tr>
+                  <td>v{{ d.version }}</td>
+                  <th scope="row">
+                    <a href="{{ d.download_path }}">{{ d.title }}</a>
+                    {% if d.note %}<span class="tiny">{{ d.note }}</span>{% endif %}
+                    <span class="filemeta">
+                      <span>{{ d.size_bytes|filesizeformat }}</span>
+                      {% if d.upload_deadline_effect %}<span class="tag tag--warn">moved the deadline</span>{% endif %}
+                    </span>
+                  </th>
+                  <td class="hide-xs"><span class="hash">{{ d.sha256|hash_short }}</span></td>
+                  <td class="hide-xs tiny">{{ d.published_at|shortdate }}</td>
+                </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="tiny">To check a download is the file we published:
+          <code>sha256sum {{ t.ocid }}-*.pdf</code>, then compare with the digest above.</p>
+      {% else %}
+        <div class="empty">
+          <h3>No documents have been published for this process</h3>
+          <p>If the notice refers to a document pack, the omission is itself a finding — the Bureau is
+          required to publish the pack with the advertisement.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <section id="questions" aria-labelledby="questions-h">
+      <h2 id="questions-h">Clarifications ({{ t.questions.count }})</h2>
+      {% for q in t.questions.all %}
+        <div class="card">
+          <p class="tiny">Asked {{ q.asked_at|datetime_wat }}</p>
+          <p><strong>{{ q.question }}</strong></p>
+          {% if q.answer %}
+            <p>{{ q.answer }}
+              {% if q.extends_deadline %}<span class="tag tag--warn">extended the deadline</span>{% endif %}</p>
+          {% else %}
+            <p class="muted">Not yet answered. When it is, the answer appears here for everyone at the
+            same moment — there are no private answers to favoured bidders.</p>
+          {% endif %}
+        </div>
+      {% empty %}
+        <p class="muted">No bidder has raised a question on this process.</p>
+      {% endfor %}
+    </section>
+
+    <section id="bids" aria-labelledby="bids-h">
+      <h2 id="bids-h">Bids ({{ bids|length }})</h2>
+      {% if not reveal %}
+        <div class="callout callout--info">
+          <span class="callout__title">Sealed until the public opening</span>
+          <p>Amounts are hidden from everyone, administrators included. What is already public is who
+          submitted and the commitment hash of each envelope — so a bid cannot be swapped afterwards.</p>
+        </div>
+      {% endif %}
+      {% if bids %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Bids received, scrollable">
+          <table class="data">
+            <caption>Bids received on this process. {{ reveal|yesno:"Amounts are shown because bids have been opened.,Amounts stay sealed until the public opening.," }}</caption>
+            <thead>
+              <tr>
+                <th scope="col">Supplier</th>
+                <th scope="col" class="hide-xs">RC number</th>
+                <th scope="col" class="num">Amount</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="hide-xs">Submitted</th>
+                <th scope="col" class="hide-xs">Commitment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in bids %}
+              <tr>
+                <th scope="row">{{ b.supplier.legal_name }}
+                  {% if b.late %}<span class="tag tag--flag">late</span>{% endif %}
+                  {% if b.supplier.is_debarred %}<span class="tag tag--flag">debarred firm</span>{% endif %}
+                </th>
+                <td class="hide-xs">{{ b.supplier.rc_number }}</td>
+                <td class="num">{% if reveal %}{{ b.amount|naira_exact }}{% else %}<span class="muted">sealed</span>{% endif %}</td>
+                <td>{{ b.status|status_tag }}</td>
+                <td class="hide-xs tiny">{{ b.submitted_at|shortdate }}</td>
+                <td class="hide-xs"><span class="hash">{{ b.commitment_hash|hash_short }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if reveal and t.commitment_root %}
+          <p class="tiny">Commitment root published at opening: <span class="hash">{{ t.commitment_root }}</span>
+          — recompute it from the hashes above to prove no bid was added, removed or altered after the deadline.</p>
+        {% endif %}
+      {% else %}
+        <p class="muted">No bid has been received on this process{% if t.bid_count == 0 %} — a competitive
+        method with no bidders is itself recorded, not quietly retendered{% endif %}.</p>
+      {% endif %}
+    </section>
+
+    <section id="evaluation" aria-labelledby="evaluation-h">
+      <h2 id="evaluation-h">How bids were scored</h2>
+      {% if t.criteria.all %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Evaluation criteria, scrollable">
+          <table class="data">
+            <caption>Evaluation criteria, fixed before bids were invited and locked at publication.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Code</th>
+                <th scope="col">Criterion</th>
+                <th scope="col">Type</th>
+                <th scope="col" class="num">Weight</th>
+                <th scope="col" class="num hide-xs">Minimum score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in t.criteria.all %}
+              <tr>
+                <td>{{ c.code }}</td>
+                <th scope="row">{{ c.name }}
+                  {% if c.description %}<span class="tiny">{{ c.description }}</span>{% endif %}</th>
+                <td>{{ c.get_kind_display }}</td>
+                <td class="num">{{ c.weight|pct }}</td>
+                <td class="num hide-xs">{{ c.min_score }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="tiny">Total weight: {{ t.criteria.all|total_weight }}%.
+        Weights cannot be changed once bids exist — that is how a runner-up becomes a winner.</p>
+      {% else %}
+        <p class="muted">No evaluation criteria are recorded on this process.</p>
+      {% endif %}
+
+      {% if t.committee.all %}
+        <h3>Evaluation committee</h3>
+        <p class="tiny">Seated at or after the public opening — the platform will not allow a committee
+        to exist before bids are opened. Every member files a signed conflict-of-interest declaration.</p>
+        <ul>
+          {% for m in t.committee.all %}
+            <li>{{ m.user.get_full_name|default:m.user.username }} — {{ m.role }}, seated {{ m.formed_at|shortdate }}
+              {% if m.declaration_sha256 %}<span class="tiny">declaration on file</span>{% else %}
+              <span class="tag tag--warn">no declaration on file</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if reveal %}
+        <p><a href="/tenders/{{ t.ocid }}/evaluation/">Open the evaluation workspace and scorecard</a>
+        {% if t.awards.all %} · <a href="/tenders/{{ t.ocid }}/evaluation/report/">published evaluation report</a>{% endif %}</p>
+      {% endif %}
+    </section>
+
+    {% if t.awards.all %}
+    <section id="award" aria-labelledby="award-h">
+      <h2 id="award-h">Award</h2>
+      {% for a in t.awards.all %}
+        <div class="card">
+          <div class="spread">
+            <h3>{{ a.bid.supplier.legal_name }} — {{ a.amount|naira_exact }}</h3>
+            {{ a.status|status_tag }}
+          </div>
+          <dl class="kv">
+            <dt>Why this bidder</dt>
+            <dd>{{ a.reason|default:"No reason published — that omission is itself a finding." }}</dd>
+            {% if a.non_lowest_reason %}
+              <dt>Not the lowest bid</dt>
+              <dd>{{ a.non_lowest_reason }}
+                <span class="tiny">Awarding above the lowest bid is allowed; doing it without a published
+                reason is not.</span></dd>
+            {% endif %}
+            <dt>Winning bid</dt>
+            <dd>{{ a.amount|naira_exact }}
+              {% if a.tender.est_value %}· {% widthratio a.amount a.tender.est_value 100 %}% of the
+              published estimate{% endif %}</dd>
+            <dt>Approved by</dt>
+            <dd>{{ a.approved_by.get_full_name|default:a.approved_by.username|default:"—" }}
+              {{ a.tender.approval_body }} · {{ a.approved_at|shortdate }}</dd>
+            {% if a.published_at %}
+              <dt>Award notice</dt>
+              <dd>{{ a.notice_ref }} published {{ a.published_at|datetime_wat }}</dd>
+            {% endif %}
+            {% if a.objection_until %}
+              <dt>Objection window</dt>
+              <dd>Open until {{ a.objection_until|datetime_wat }} —
+                <a href="/tenders/{{ t.ocid }}/objections/file/{{ a.pk }}/">file an objection</a></dd>
+            {% endif %}
+          </dl>
+        </div>
+      {% endfor %}
+      {% if contract %}
+        <p><a href="/tenders/contracts/{{ contract.reference }}/">Contract {{ contract.reference }}</a>
+        — implementation, variations and payment certifications.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section id="objections" aria-labelledby="objections-h">
+      <h2 id="objections-h">Objections and review</h2>
+      {% if t.objections.all %}
+        {% for o in t.objections.all %}
+          <div class="card">
+            <div class="spread">
+              <h3>Objection filed {{ o.filed_at|shortdate }}</h3>
+              {{ o.outcome|status_tag }}
+            </div>
+            <p class="tiny">Filed by {{ o.filed_by_label|default:"an anonymous complainant" }}</p>
+            <p>{{ o.ground }}</p>
+            {% if o.decision %}
+              <p><strong>Panel decision:</strong> {{ o.decision }}
+                <span class="tiny">decided {{ o.decided_at|shortdate }}</span></p>
+            {% endif %}
+            {% if o.panel_members %}
+              <p class="tiny">Panel: {% for m in o.panel_members %}{{ m.name }} ({{ m.nominator }}){% if not forloop.last %}, {% endif %}{% endfor %}
+              — half nominated by civil society, and the Bureau cannot reject those nominees.</p>
+            {% endif %}
+            <p><a href="/objections/{{ o.pk }}/">Read the full objection file</a></p>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="muted">No objection has been filed on this process.
+          <a href="/tenders/{{ t.ocid }}/objections/">Objection register for this tender</a> ·
+          <a href="/tenders/{{ t.ocid }}/debriefs/">debrief log</a>.</p>
+      {% endif %}
+    </section>
+
+    <section id="flags" aria-labelledby="flags-h">
+      <h2 id="flags-h">Red flags computed on this process</h2>
+      {% if public_flags %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Risk indicators, scrollable">
+          <table class="data">
+            <caption>Automatic indicators, version {{ INDICATOR_VERSION|default:"current" }}. A flag is a
+            prompt to look, not a finding of guilt — so the arithmetic behind each one is printed beside it.</caption>
+            <thead>
+              <tr><th scope="col">Indicator</th><th scope="col">Severity</th><th scope="col">What triggered it</th></tr>
+            </thead>
+            <tbody>
+              {% for f in public_flags %}
+              <tr>
+                <th scope="row">{{ f.code }}<span class="tiny">{{ f.name }}</span></th>
+                <td>{{ f.severity|severity_tag }}</td>
+                <td>{{ f.detail }}
+                  {% if f.evidence %}<span class="tiny">Evidence: {{ f.evidence }}</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="tiny"><a href="/tenders/indicators/">Definitions, version history and how often each
+        indicator fires across the whole register</a>.</p>
+      {% else %}
+        <p><span class="tag tag--open">No published indicator triggers on this process</span>
+          <span class="tiny">That is not a clean bill of health — it means the automatic checks did not
+          fire. <a href="/tenders/indicators/">See what they check</a>.</span></p>
+      {% endif %}
+      {% if internal_flags %}
+        <p class="tiny">{{ internal_flags }} further indicator{{ internal_flags|pluralize }} fired but are
+        not published on this page; their definitions state why (they describe a supplier's pattern across
+        tenders, not this process alone).</p>
+      {% endif %}
+    </section>
+
+    <section id="ledger" aria-labelledby="ledger-h">
+      <h2 id="ledger-h">Full history (append-only ledger)</h2>
+      <p class="tiny">This is the record as it happened. Nothing below can be edited or deleted by any
+      user, including administrators; corrections appear as new entries.</p>
+      {% if events %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Ledger events, scrollable">
+          <table class="data data--compact">
+            <caption>Ledger entries for this process, in sequence. Each entry carries the hash of the one
+            before it, so removing any line breaks the chain.</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="num">#</th>
+                <th scope="col">Event</th>
+                <th scope="col" class="hide-xs">Actor</th>
+                <th scope="col">When</th>
+                <th scope="col" class="hide-xs">Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in events %}
+              <tr>
+                <td class="num">{{ e.seq }}</td>
+                <th scope="row"><code>{{ e.event_type }}</code></th>
+                <td class="hide-xs">{{ e.actor }}</td>
+                <td class="tiny">{{ e.occurred_at|relative }}</td>
+                <td class="hide-xs tiny">{{ e.payload|ledger_payload }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No ledger entries are associated with this process yet.</p>
+      {% endif %}
+    </section>
+
+    <section id="data" aria-labelledby="data-h">
+      <h2 id="data-h">Take this process as data</h2>
+      <div class="card">
+        <ul>
+          <li><a href="/tenders/{{ t.ocid }}/ocds.json">OCDS 1.1 release</a>
+            {% if ocds_ok %}<span class="tag tag--open">validated</span>{% else %}<span class="tag tag--flag">withheld: invalid</span>{% endif %}</li>
+          <li><a href="/api/v1/tenders/{{ t.ocid }}">JSON detail</a> ·
+              <a href="/api/v1/tenders/{{ t.ocid }}/events">ledger events</a> ·
+              <a href="/api/v1/tenders/{{ t.ocid }}/flags">indicators</a></li>
+          <li><a href="/tenders/export.csv?q={{ t.ocid }}">This process as a CSV row</a></li>
+        </ul>
+        <p class="tiny">Direct links like these are the point of the platform: a journalist can cite the
+        URL, and it will still resolve in ten years.</p>
+      </div>
+    </section>
+  </div>
+
+  <aside aria-label="Summary and actions">
+    <div class="jump">
+      <div class="card">
+        <h2>At a glance</h2>
+        <dl class="kv kv--stack">
+          <dt>Reference</dt><dd>{{ t.ocid }}</dd>
+          <dt>Agency</dt><dd>{{ t.agency.code }} — {{ t.agency.name }}</dd>
+          <dt>Method</dt><dd>{{ t.get_method_display }}</dd>
+          <dt>Status</dt><dd>{{ t.status|status_tag }}</dd>
+          {% if t.submission_close_at %}<dt>Closes</dt><dd>{{ t.submission_close_at|datetime_wat }}</dd>{% endif %}
+          {% if t.opening_at %}<dt>Opening</dt><dd>{{ t.opening_at|datetime_wat }}</dd>{% endif %}
+        </dl>
+      </div>
+
+      <nav class="card" aria-label="On this page">
+        <h2>On this page</h2>
+        <ul class="jump__list">
+          <li><a href="#key-facts">What you need to know</a></li>
+          <li><a href="#timeline">Progress</a></li>
+          <li><a href="#documents">Documents</a></li>
+          <li><a href="#questions">Clarifications</a></li>
+          <li><a href="#bids">Bids</a></li>
+          <li><a href="#evaluation">Scoring</a></li>
+          {% if t.awards.all %}<li><a href="#award">Award</a></li>{% endif %}
+          <li><a href="#flags">Red flags</a></li>
+          <li><a href="#ledger">Ledger history</a></li>
+          <li><a href="#data">Machine-readable</a></li>
+        </ul>
+      </nav>
+
+      <div class="card">
+        <h2>Things you can do</h2>
+        <ul class="jump__list">
+          {% if t.is_open %}<li><a href="/tenders/{{ t.ocid }}/bid/">Submit a bid</a></li>{% endif %}
+          <li><a href="/tenders/{{ t.ocid }}/objections/">Objections on this process</a></li>
+          <li><a href="/tenders/{{ t.ocid }}/debriefs/">Request or read a debrief</a></li>
+          {% if reveal %}<li><a href="/tenders/{{ t.ocid }}/evaluation/">Evaluation workspace</a></li>{% endif %}
+          <li><a href="/tenders/help/#objection">How to challenge a decision</a></li>
+        </ul>
+        {% if not t.is_open %}
+          <p class="tiny">Bidding on this process is closed{% if t.submission_close_at %} — the window
+          ended {{ t.submission_close_at|shortdate }}{% endif %}.</p>
+        {% endif %}
+      </div>
+
+      <div class="verify">
+        <h2>Check this record</h2>
+        <p class="tiny">This page is generated from the register, not written by hand. If any figure here
+        disagrees with the API, the API is right.</p>
+        <ul class="jump__list">
+          <li><a href="/api/v1/tenders/{{ t.ocid }}">Same record as JSON</a></li>
+          <li><a href="/tenders/{{ t.ocid }}/ocds.json">OCDS release</a></li>
+          <li><a href="/tenders/status/">Ledger status and head hash</a></li>
+        </ul>
+      </div>
+    </div>
+  </aside>
 </div>
-
-{% if t.documents.all %}
-<h2>Documents</h2>
-<table><thead><tr><th>Version</th><th>Document</th><th>SHA-256 (verify your download)</th><th>Published</th></tr></thead><tbody>
-{% for d in t.documents.all %}{% if d.published %}
-<tr><td>v{{ d.version }}</td><td><a href="{{ d.download_path }}">{{ d.title }}</a>{% if d.note %}<div class="tiny">{{ d.note }}</div>{% endif %}</td><td><code>{{ d.sha256|hash_short }}</code></td><td class="muted">{{ d.published_at|shortdate }}</td></tr>
-{% endif %}{% endfor %}</tbody></table>
-{% endif %}
-
-{% if t.questions.all %}
-<h2>Clarifications ({{ t.questions.count }})</h2>
-{% for q in t.questions.all %}
-<div class="card"><p class="tiny">Asked {{ q.asked_at|shortdate }}</p><p>{{ q.question }}</p>
-{% if q.answer %}<p><strong>Answer:</strong> {{ q.answer }}{% if q.extends_deadline %} <span class="tag frozen">extended the deadline</span>{% endif %}</p>{% else %}<p class="muted">Awaiting answer &mdash; published to everyone when given.</p>{% endif %}</div>
-{% endfor %}
-{% endif %}
-
-{% if bids %}
-<h2>Bids</h2>
-{% if not reveal %}<div class="warnbox">Bids are sealed until the public opening. Only submission count and commitment hashes are shown; amounts are hidden from everyone including administrators.</div>{% endif %}
-<table><thead><tr><th>Supplier</th><th>RC</th><th class="num">Amount</th><th>Status</th><th>Submitted</th><th>Commitment</th></tr></thead><tbody>
-{% for b in bids %}<tr>
-  <td>{{ b.supplier.legal_name }}{% if b.late %} <span class="tag flag">late</span>{% endif %}</td>
-  <td class="muted">{{ b.supplier.rc_number }}</td>
-  <td class="num">{% if reveal %}{{ b.amount|naira }}{% else %}<span class="muted">sealed</span>{% endif %}</td>
-  <td>{{ b.status|status_tag }}</td>
-  <td class="muted">{{ b.submitted_at|shortdate }}</td>
-  <td><code>{{ b.commitment_hash|hash_short }}</code></td>
-</tr>{% endfor %}</tbody></table>
-{% if reveal and t.commitment_root %}<p class="tiny">Commitment root published at opening: <code>{{ t.commitment_root|hash_short }}</code> &mdash; recompute it from the hashes above to confirm no bid was added, removed or altered after the deadline.</p>{% endif %}
-{% endif %}
-
-{% if t.committee.all %}
-<h2>Evaluation committee</h2>
-<p class="tiny">Formed at or after the public opening &mdash; the platform will not let a committee exist earlier than that. Each member filed a conflict-of-interest declaration.</p>
-<ul class="tight">{% for c in t.committee.all %}<li>{{ c.user.get_full_name|default:c.user.username }} &mdash; {{ c.role }}, seated {{ c.formed_at|shortdate }}{% if c.declaration_sha256 %} &middot; declaration <code>{{ c.declaration_sha256|hash_short }}</code>{% endif %}</li>{% endfor %}</ul>
-{% endif %}
-
-{% if t.awards.all %}
-<h2>Award</h2>
-{% for a in t.awards.all %}
-<div class="card">
-  <p><strong>{{ a.bid.supplier.legal_name }}</strong> &mdash; {{ a.amount|naira }} &middot; {{ a.status|status_tag }}</p>
-  <dl class="kv">
-    <dt>Why they won</dt><dd>{{ a.reason }}</dd>
-    {% if a.non_lowest_reason %}<dt>Not the lowest bid</dt><dd>{{ a.non_lowest_reason }}</dd>{% endif %}
-    <dt>Approved by</dt><dd>{{ a.approved_by.get_full_name|default:"&mdash;" }} ({{ t.approval_body }}), {{ a.approved_at|shortdate }}</dd>
-    {% if a.published_at %}<dt>Notice</dt><dd>{{ a.notice_ref }} published {{ a.published_at|shortdate }}</dd>{% endif %}
-    {% if a.objection_until %}<dt>Objection window</dt><dd>open until {{ a.objection_until|shortdate }} &mdash; <a href="/objections/new/{{ t.ocid }}/">file an objection</a></dd>{% endif %}
-  </dl>
-</div>
-{% endfor %}
-{% endif %}
-
-{% if t.objections.all %}
-<h2>Objections and review</h2>
-{% for o in t.objections.all %}<div class="card">
-  <p>{{ o.outcome|status_tag }} filed {{ o.filed_at|shortdate }} by {{ o.filed_by_label|default:"anonymous" }}</p>
-  <p>{{ o.ground }}</p>
-  {% if o.decision %}<p><strong>Panel decision:</strong> {{ o.decision }} <span class="tiny">({{ o.decided_at|shortdate }})</span></p>{% endif %}
-  {% if o.panel_members %}<p class="tiny">Panel: {% for m in o.panel_members %}{{ m.name }} ({{ m.nominator }}){% if not forloop.last %}, {% endif %}{% endfor %} &mdash; half nominated by civil society; the Bureau cannot reject those nominees.</p>{% endif %}
-</div>{% endfor %}
-{% endif %}
-
-<h2>Red flags on this process</h2>
-{% if public_flags %}
-<table><thead><tr><th>Indicator</th><th>Severity</th><th>Finding</th></tr></thead><tbody>
-{% for f in public_flags %}<tr><td><strong>{{ f.code }}</strong><div class="tiny">{{ f.name }}</div></td><td>{{ f.severity }}</td><td>{{ f.detail }}</td></tr>{% endfor %}
-</tbody></table>
-<p class="tiny">Definitions and arithmetic at <a href="/tenders/indicators/">/tenders/indicators/</a>. Flags are prompts for scrutiny, not findings of guilt &mdash; that is why the evidence is printed next to them.</p>
-{% else %}<p class="tag ok">No published indicator triggers on this process.</p>{% endif %}
-
-<h2>Full history (append-only ledger)</h2>
-<p class="tiny">This is the record as it happened. Nothing below can be edited or deleted by any user, including administrators; corrections appear as new events.</p>
-<table><thead><tr><th>Seq</th><th>Event</th><th>Actor</th><th>At</th><th>Detail</th></tr></thead><tbody>
-{% for e in events %}<tr><td class="num">{{ e.seq }}</td><td><code>{{ e.event_type }}</code></td><td>{{ e.actor }}</td><td class="muted">{{ e.occurred_at|shortdate }}</td><td class="tiny">{{ e.payload }}</td></tr>{% endfor %}
-</tbody></table>
-
-<h2>Machine-readable</h2>
-<p class="tiny"><a href="/tenders/{{ t.ocid }}/ocds.json">OCDS 1.1 release</a> &middot;
-<a href="/api/v1/tenders/{{ t.ocid }}">JSON detail</a> &middot;
-<a href="/api/v1/tenders/{{ t.ocid }}/events">events</a> &middot;
-<a href="/api/v1/tenders/{{ t.ocid }}/flags">flags</a></p>
 {% endblock %}

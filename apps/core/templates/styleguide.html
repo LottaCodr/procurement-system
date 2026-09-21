@@ -1,0 +1,124 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Component style guide (development only){% endblock %}
+{% block robots %}{% endblock %}
+{% block content %}
+<header class="page-head page-head--ruled">
+  <h1>Component style guide</h1>
+  <p class="lede">Every visual element used on this site, with its state and its accessible name. This page
+  exists so a new component cannot be invented on a Tuesday afternoon by copying the CSS of another one, and
+  so a reviewer can see the whole vocabulary in one place.</p>
+  <p class="tiny">Served only when <code>DEBUG</code> is on. It is a tool for the people who build the
+  register, not content for the public.</p>
+</header>
+
+<section aria-labelledby="sg-status">
+  <h2 id="sg-status">Status tags</h2>
+  <p>Each tag prints the status word as well as the colour, so the meaning survives a monochrome print, a
+  colour-vision deficiency and a screen reader.</p>
+  <p class="cluster">{% for s in statuses %}{{ s|status_tag }} {% endfor %}</p>
+</section>
+
+<section aria-labelledby="sg-money">
+  <h2 id="sg-money">Money</h2>
+  <p>Compact form in lists, exact form on detail pages, and the exact figure always attached to the compact
+  one so the shorthand cannot become the record.</p>
+  <table class="data">
+    <caption>Money formatting at different magnitudes.</caption>
+    <thead><tr><th scope="col">Value</th><th scope="col">Compact</th><th scope="col">Exact</th><th scope="col">Bar</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">₦450</th><td>{{ 450|naira }}</td><td>{{ 450|naira_exact }}</td><td>{% bar 5 %}</td></tr>
+      <tr><th scope="row">₦48,500</th><td>{{ 48500|naira }}</td><td>{{ 48500|naira_exact }}</td><td>{% bar 25 %}</td></tr>
+      <tr><th scope="row">₦12,400,000</th><td>{{ 12400000|naira }}</td><td>{{ 12400000|naira_exact }}</td><td>{% bar 50 %}</td></tr>
+      <tr><th scope="row">₦1,250,000,000</th><td>{{ 1250000000|naira }}</td><td>{{ 1250000000|naira_exact }}</td><td>{% bar 100 %}</td></tr>
+      <tr><th scope="row">not published</th><td>{{ None|naira }}</td><td>{{ None|naira_exact }}</td><td>{% bar 0 %}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section aria-labelledby="sg-time">
+  <h2 id="sg-time">Dates and deadlines</h2>
+  <p>Every timestamp is labelled with the timezone it is stated in. The countdown never claims more time
+  than exists.</p>
+  <ul>
+    <li>Now: {{ now|datetime_wat }}</li>
+    <li>Short date: {{ now|shortdate }}</li>
+    <li>Relative: {{ now|relative }}</li>
+    <li>Deadline (in 5 days): {{ in5|deadline }}</li>
+    <li>Deadline (past): {{ past|deadline }}</li>
+  </ul>
+</section>
+
+<section aria-labelledby="sg-callouts">
+  <h2 id="sg-callouts">Callouts</h2>
+  <div class="callout callout--info"><span class="callout__title">Information</span><p>Context that helps
+    someone read the page.</p></div>
+  <div class="callout callout--ok"><span class="callout__title">Confirmed</span><p>Something verified, with
+    the verification stated.</p></div>
+  <div class="callout callout--warn"><span class="callout__title">Attention</span><p>Something that needs a
+    decision or carries a real risk.</p></div>
+  <div class="callout callout--danger" role="alert"><span class="callout__title">Serious</span><p>Integrity
+    or safety failure. Used sparingly enough that it still means something.</p></div>
+</section>
+
+<section aria-labelledby="sg-forms">
+  <h2 id="sg-forms">Form fields and errors</h2>
+  <div class="error-summary" role="alert" tabindex="-1">
+    <h3>There is a problem</h3>
+    <ul><li><a href="#sg-error-field">Enter a legal name</a></li></ul>
+  </div>
+  <form class="form">
+    <div class="field field--invalid">
+      <label class="field__label" for="sg-error-field">Legal name</label>
+      <span class="field__hint" id="sg-error-hint">Exactly as it appears on your CAC certificate.</span>
+      <input id="sg-error-field" type="text" aria-describedby="sg-error-hint sg-error-msg" aria-invalid="true">
+      <p class="field__error" id="sg-error-msg">Enter a legal name</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="sg-ok-field">Reference</label>
+      <input id="sg-ok-field" type="text" value="TAR-MOH-2026-0001">
+    </div>
+    <div class="field field--inline">
+      <input id="sg-check" type="checkbox">
+      <label class="field__label" for="sg-check">I have read the rules</label>
+    </div>
+    <p><button class="btn" type="button">Primary action</button>
+      <button class="btn btn--secondary" type="button">Secondary</button>
+      <button class="btn btn--quiet" type="button">Quiet</button></p>
+  </form>
+</section>
+
+<section aria-labelledby="sg-tables">
+  <h2 id="sg-tables">Tables</h2>
+  <p>Every table has a caption, column headers with <code>scope</code>, a scroll container with an
+  accessible name, and a hint that appears only when the table actually overflows.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Example table, scrollable">
+    <table class="data data--sticky-first">
+      <caption>An example register table, with the first column frozen so the row identity survives a
+      horizontal scroll on a phone.</caption>
+      <thead><tr><th scope="col">Tender</th><th scope="col" class="hide-xs">Agency</th><th scope="col">Status</th><th scope="col" class="num">Estimate</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Rehabilitation of Bali boreholes</th><td class="hide-xs">MOH</td><td>{{ "PUBLISHED"|status_tag }}</td><td class="num">{{ 12400000|naira }}</td></tr>
+        <tr><th scope="row">Supply of hospital beds</th><td class="hide-xs">MOH</td><td>{{ "AWARDED"|status_tag }}</td><td class="num">{{ 48500000|naira }}</td></tr>
+        <tr><th scope="row">Rural feeder road, Wukari</th><td class="hide-xs">MWI</td><td>{{ "FROZEN"|status_tag }}</td><td class="num">{{ 320000000|naira }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note"><span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>The hint is decoration; the table is fully usable without it.</span></p>
+</section>
+
+<section aria-labelledby="sg-kpi">
+  <h2 id="sg-kpi">Figures</h2>
+  <div class="grid grid--kpi">
+    <div class="kpi"><span class="kpi__value">1,204</span><span class="kpi__label">processes published</span><span class="kpi__meta">computed, never typed</span></div>
+    <div class="kpi"><span class="kpi__value">{{ 1250000000|naira }}</span><span class="kpi__label">awarded</span><span class="kpi__meta">from {{ 1250000000|naira_exact }}</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="sg-print">
+  <h2 id="sg-print">Printing</h2>
+  <p>Printing this site removes navigation, filters and buttons, shows link destinations, and expands the
+  captions that explain a table. Government records get printed; a register that prints as a column of
+  unlabelled numbers is a register that gets filed and believed.</p>
+</section>
+{% endblock %}

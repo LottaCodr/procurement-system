@@ -1,31 +1,92 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Open data &amp; API{% endblock %}
+{% block title %}Open data and API — no key, no quota, no permission{% endblock %}
+{% block description %}Open Contracting Data Standard releases, bulk downloads, CSV exports and an OpenAPI schema for {{ STATE_NAME }} public procurement. Unauthenticated, CC BY 4.0.{% endblock %}
+
 {% block content %}
-<h1>Open data &amp; API</h1>
-<p class="lead">No key. No registration. No quota. <strong>CC BY 4.0.</strong> This is not generosity &mdash; an oversight
-interface that needs permission from the body being oversighted is not an oversight interface.</p>
-<div class="card"><h3>Try it now</h3>
-<pre>curl -s https://procurement.taraba.gov.ng/api/v1/stats
-curl -s "https://procurement.taraba.gov.ng/api/v1/tenders?open=1&amp;min=10000000"
-curl -s  https://procurement.taraba.gov.ng/api/v1/bulk?year=2026 -o taraba-2026.zip
-curl -s  https://procurement.taraba.gov.ng/api/v1/releases | jq -c .ocid</pre>
-<p class="tiny">Current register state: {{ m.awards_published }} awards, {{ m.total_award_value|naira }},
-{{ m.ledger_events }} ledger events. If your figure and ours differ, re-run the query; the API is the source of truth.</p></div>
-<h2>Endpoints</h2>
-<table><thead><tr><th>Path</th><th>What it gives you</th></tr></thead><tbody>
-{% for e in endpoints %}<tr><td><code>{{ e.0 }}</code></td><td class="muted">{{ e.1 }}</td></tr>{% endfor %}
-</tbody></table>
-<h2>Standards and guarantees</h2>
-<ul class="tight">
-<li><strong>OCDS 1.1</strong> with a versioned <code>taraba</code> extension &mdash; LGA, method, approval body, red flags,
-immutable-from timestamp, commitment root. Extensions never fork the core schema.</li>
-<li><strong>Continuous releases.</strong> A new release is emitted when a process changes, not in a nightly dump.</li>
-<li><strong>Every release is schema-validated before it leaves the API.</strong> A transparency claim that cannot be
-executed is decoration; <code>GET /api/v1/schema.json</code> is what we validate against.</li>
-<li><strong>Permanent URLs.</strong> <code>/tenders/{ocid}/</code> never changes. Retired paths 301 to successors, and the whole
-map is published at <a href="/redirects">/redirects</a>. Kano&rsquo;s re-platforming turned every previously published
-award list and OCDS report into a 404; that is treated here as data destruction, with a test written against it.</li>
-<li><strong>Reproducible integrity.</strong> <code>python manage.py verify_ledger</code> recomputes the whole hash chain from
-the public bulk dump. You do not have to believe us.</li>
-</ul>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Open data</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Open data and API</h1>
+  <p class="lede">No key. No registration. No quota. <strong>CC BY 4.0.</strong> This is not generosity:
+  an oversight interface that needs permission from the body being overseen is not an oversight
+  interface.</p>
+  <div class="cluster">
+    <a class="btn" href="/api/v1/stats">Current figures (JSON)</a>
+    <a class="btn btn--secondary" href="/api/v1/schema">OpenAPI 3.1 schema</a>
+    <a class="btn btn--secondary" href="/api/v1/bulk?year={{ YEAR }}">Download {{ YEAR }} (zip)</a>
+  </div>
+</header>
+
+<section aria-labelledby="try-h">
+  <h2 id="try-h">Try it in a terminal</h2>
+  <div class="card">
+    <div class="snippet-wrap">
+      <pre class="snippet" id="snippet-curl"><code>curl -s {{ request.scheme }}://{{ request.get_host }}/api/v1/stats
+curl -s "{{ request.scheme }}://{{ request.get_host }}/api/v1/tenders?open=1&amp;min=10000000"
+curl -s "{{ request.scheme }}://{{ request.get_host }}/api/v1/tenders?agency=MOH&amp;status=AWARDED"
+curl -s "{{ request.scheme }}://{{ request.get_host }}/api/v1/releases?since=2026-01-01" | head -c 2000
+curl -s -o taraba-{{ YEAR }}.zip "{{ request.scheme }}://{{ request.get_host }}/api/v1/bulk?year={{ YEAR }}"</code></pre>
+      <button class="btn btn--small btn--secondary" type="button" hidden
+              data-copy-target="#snippet-curl" data-copy-label="Shell commands">Copy</button>
+    </div>
+    <p class="tiny">Register state at {{ m.generated_at|datetime_wat }}: {{ m.awards_published }} awards
+    totalling {{ m.total_award_value|naira }}, {{ m.published_all_time }} processes published,
+    {{ m.ledger_events }} ledger events. If your figure and ours differ, re-run the query — the API is the
+    source of truth and this page is generated from it.</p>
+  </div>
+</section>
+
+<section aria-labelledby="endpoints-h">
+  <h2 id="endpoints-h">Endpoints</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="API endpoints, scrollable">
+    <table class="data">
+      <caption>Every endpoint is unauthenticated, unversioned-by-necessity (v1 is stable) and returns JSON
+      unless stated otherwise.</caption>
+      <thead><tr><th scope="col">Path</th><th scope="col">What it gives you</th></tr></thead>
+      <tbody>
+      {% for path, description in endpoints %}
+        <tr><th scope="row"><code>{{ path }}</code></th><td>{{ description }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="guarantees-h">
+  <h2 id="guarantees-h">The guarantees behind the data</h2>
+  <ul>
+    <li><strong>OCDS 1.1</strong> with a versioned <code>taraba</code> extension — LGA, method, approval
+      body, red flags, the immutable-from timestamp and the bid commitment root. Extensions never fork the
+      core schema.</li>
+    <li><strong>Continuous releases.</strong> A release is emitted when a process changes, not in a
+      nightly dump, so the feed can drive live alerts.</li>
+    <li><strong>Validated before it leaves.</strong> A transparency claim that cannot be executed is
+      decoration: every release is checked against the published schema before it is served, and a record
+      that fails is withheld and listed in <a href="/tenders/status/">service status</a>.</li>
+    <li><strong>Permanent URLs.</strong> <code>/tenders/{ocid}/</code> never changes. Retired paths return
+      a permanent redirect to their successor, and the whole map is published at
+      <a href="/redirects">/redirects</a>. Kano's re-platforming turned every previously published award
+      list and OCDS report into a 404; that is treated here as data destruction, with a test written
+      against it.</li>
+    <li><strong>Reproducible integrity.</strong> The ledger is a hash chain over every event. You do not
+      have to believe us — recompute it from the bulk download and compare the head hash.</li>
+    <li><strong>Corrections are additive.</strong> If a record is wrong, the fix is a new event that
+      supersedes it. The old value stays in the history, because a register whose past can be tidied is
+      not a register.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="licence-h">
+  <h2 id="licence-h">Licence and conditions</h2>
+  <div class="card">
+    <p>Published under <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons
+    Attribution 4.0</a>. Use it commercially, quote it, build products on it. Attribute
+    “{{ STATE_NAME }} Bureau of Public Procurement ({{ PLATFORM_NAME }})”.</p>
+    <p class="tiny">Personal data is minimised deliberately: tax numbers are masked in the public
+    register, supplier contact details are not published, and whistleblower reports are never exposed
+    through any endpoint.</p>
+  </div>
+</section>
 {% endblock %}

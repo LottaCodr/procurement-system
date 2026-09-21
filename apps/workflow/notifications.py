@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class NotificationBackend:
     """Base class for notification backends."""
-    
+
     def send(self, recipient: str, message: str, **kwargs) -> dict:
         """Send a notification. Returns dict with 'success' and 'reference'."""
         raise NotImplementedError
@@ -26,7 +26,7 @@ class NotificationBackend:
 
 class ConsoleBackend(NotificationBackend):
     """Development backend: logs to console. Used when SMS_PROVIDER=console."""
-    
+
     def send(self, recipient: str, message: str, channel: str = "SMS", **kwargs) -> dict:
         logger.info(f"[{channel}] To: {recipient}\n{message}")
         ref = hashlib.sha256(f"{recipient}:{message}".encode()).hexdigest()[:16]
@@ -35,23 +35,23 @@ class ConsoleBackend(NotificationBackend):
 
 class SMTPBackend(NotificationBackend):
     """SMTP email backend with DSN (Delivery Status Notification) support.
-    
+
     Configuration via settings:
         EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
         EMAIL_USE_TLS, DEFAULT_FROM_EMAIL
     """
-    
+
     def send(self, recipient: str, message: str, subject: str = "Taraba Procurement Notification", **kwargs) -> dict:
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"] = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@tr.gov.ng")
             msg["To"] = recipient
-            
+
             # Plain text version
             text_part = MIMEText(message, "plain")
             msg.attach(text_part)
-            
+
             # HTML version with basic styling
             html = f"""
             <html>
@@ -70,26 +70,26 @@ class SMTPBackend(NotificationBackend):
             """
             html_part = MIMEText(html, "html")
             msg.attach(html_part)
-            
+
             host = getattr(settings, "EMAIL_HOST", "localhost")
             port = getattr(settings, "EMAIL_PORT", 587)
             use_tls = getattr(settings, "EMAIL_USE_TLS", True)
-            
+
             with smtplib.SMTP(host, port) as server:
                 if use_tls:
                     server.starttls()
-                
+
                 user = getattr(settings, "EMAIL_HOST_USER", None)
                 password = getattr(settings, "EMAIL_HOST_PASSWORD", None)
                 if user and password:
                     server.login(user, password)
-                
+
                 # Send with DSN request
                 server.send_message(msg)
-                
+
             logger.info(f"Email sent to {recipient}")
             return {"success": True, "reference": f"smtp-{hashlib.sha256(recipient.encode()).hexdigest()[:12]}"}
-            
+
         except Exception as e:
             logger.error(f"Email failed for {recipient}: {e}")
             return {"success": False, "error": str(e)}
@@ -97,36 +97,36 @@ class SMTPBackend(NotificationBackend):
 
 class AfricasTalkingBackend(NotificationBackend):
     """Africa's Talking SMS backend.
-    
+
     Configuration via settings:
         AT_API_KEY, AT_USERNAME, AT_SENDER_ID
     """
-    
+
     def send(self, recipient: str, message: str, **kwargs) -> dict:
         import urllib.request
         import urllib.parse
-        
+
         api_key = getattr(settings, "AT_API_KEY", "")
         username = getattr(settings, "AT_USERNAME", "sandbox")
         sender_id = getattr(settings, "AT_SENDER_ID", "TAR-BPP")
-        
+
         if not api_key:
             logger.warning("AT_API_KEY not configured, falling back to console")
             return ConsoleBackend().send(recipient, message, channel="SMS")
-        
+
         try:
             # Normalize phone number to international format
             phone = recipient.replace(" ", "").replace("-", "")
             if not phone.startswith("+"):
                 phone = "+234" + phone.lstrip("0")
-            
+
             data = urllib.parse.urlencode({
                 "username": username,
                 "to": phone,
                 "message": message[:160],  # SMS limit
                 "from": sender_id,
             }).encode()
-            
+
             req = urllib.request.Request(
                 "https://api.africastalking.com/version1/messaging",
                 data=data,
@@ -136,10 +136,10 @@ class AfricasTalkingBackend(NotificationBackend):
                     "Accept": "application/json",
                 },
             )
-            
+
             with urllib.request.urlopen(req, timeout=10) as response:
                 result = json.loads(response.read())
-                
+
             if result.get("SMSMessageData", {}).get("Recipients"):
                 ref = result["SMSMessageData"]["Recipients"][0].get("messageId", "")
                 logger.info(f"SMS sent to {recipient} via Africa's Talking: {ref}")
@@ -148,7 +148,7 @@ class AfricasTalkingBackend(NotificationBackend):
                 error = result.get("SMSMessageData", {}).get("Message", "Unknown error")
                 logger.error(f"SMS failed for {recipient}: {error}")
                 return {"success": False, "error": error}
-                
+
         except Exception as e:
             logger.error(f"SMS failed for {recipient}: {e}")
             return {"success": False, "error": str(e)}
@@ -156,26 +156,26 @@ class AfricasTalkingBackend(NotificationBackend):
 
 class TermiiBackend(NotificationBackend):
     """Termii SMS backend.
-    
+
     Configuration via settings:
         TERMII_API_KEY, TERMII_SENDER_ID
     """
-    
+
     def send(self, recipient: str, message: str, **kwargs) -> dict:
         import urllib.request
-        
+
         api_key = getattr(settings, "TERMII_API_KEY", "")
         sender_id = getattr(settings, "TERMII_SENDER_ID", "TAR-BPP")
-        
+
         if not api_key:
             logger.warning("TERMII_API_KEY not configured, falling back to console")
             return ConsoleBackend().send(recipient, message, channel="SMS")
-        
+
         try:
             phone = recipient.replace(" ", "").replace("-", "")
             if not phone.startswith("234"):
                 phone = "234" + phone.lstrip("0").lstrip("+")
-            
+
             payload = json.dumps({
                 "to": phone,
                 "from": sender_id,
@@ -184,7 +184,7 @@ class TermiiBackend(NotificationBackend):
                 "channel": "dnd",
                 "api_key": api_key,
             }).encode()
-            
+
             req = urllib.request.Request(
                 "https://api.ng.termii.com/api/sms/send",
                 data=payload,
@@ -192,14 +192,14 @@ class TermiiBackend(NotificationBackend):
                     "Content-Type": "application/json",
                 },
             )
-            
+
             with urllib.request.urlopen(req, timeout=10) as response:
                 result = json.loads(response.read())
-                
+
             ref = result.get("message_id", "")
             logger.info(f"SMS sent to {recipient} via Termii: {ref}")
             return {"success": True, "reference": ref}
-            
+
         except Exception as e:
             logger.error(f"SMS failed for {recipient}: {e}")
             return {"success": False, "error": str(e)}
@@ -208,7 +208,7 @@ class TermiiBackend(NotificationBackend):
 def get_sms_backend():
     """Get the configured SMS backend based on settings."""
     provider = getattr(settings, "SMS_PROVIDER", "console").lower()
-    
+
     if provider == "africastalking":
         return AfricasTalkingBackend()
     elif provider == "termii":

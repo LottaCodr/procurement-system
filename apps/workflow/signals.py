@@ -3,8 +3,7 @@ clean and focused on the state machine."""
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from ledger.services import append
-from procurement.models import Bid, Tender
+from procurement.models import Tender
 from workflow.models import TenderKey
 from workflow.services import publish_tender_key, dispatch_category_watches, unseal_bids
 import logging
