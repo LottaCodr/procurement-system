@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}File objection — {{ t.ocid }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; File objection
+</nav>
+
+<div class="card">
+  <h1>File an objection</h1>
+  <p>A credible objection freezes the tender for 10 working days while an independent panel decides.
+  The panel is half-nominated by civil society — the Bureau cannot reject those nominees.</p>
+
+  <dl>
+    <dt>Tender</dt><dd>{{ t.ocid }} — {{ t.title }}</dd>
+    <dt>Award</dt><dd>₦{{ award.amount|floatformat:2 }} to {{ award.bid.supplier.legal_name }}</dd>
+    <dt>Objection window</dt>
+    <dd>{% if objection_until %}Closes {{ objection_until|date:"d M Y H:i" }}{% else %}Not specified{% endif %}</dd>
+  </dl>
+
+  {% if not window_open %}
+  <div class="alert bad">
+    <strong>The objection window has closed.</strong> Objections must be filed within 10 working days of award publication.
+  </div>
+  {% else %}
+  <form id="objection-form" class="form-stacked">
+    {% csrf_token %}
+    <label>Your identity (published verbatim, or "anonymous")
+      <input name="label" required placeholder="Your name or organisation">
+    </label>
+    <label>Ground for objection
+      <textarea name="ground" required rows="6" placeholder="Describe the specific ground for your objection. Reference the published criteria, evaluation, or procurement law provisions."></textarea>
+    </label>
+    <label>Panel nominees (CSO)
+      <textarea name="cso_panelists" rows="3" placeholder="One per line: Name, Role"></textarea>
+    </label>
+    <label>Panel nominees (Government)
+      <textarea name="gov_panelists" rows="3" placeholder="One per line: Name, Role"></textarea>
+    </label>
+    <button type="submit" class="btn primary">File objection &amp; freeze tender</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -83,6 +83,7 @@ def tender_list(request):
     page, per = int(request.GET.get("page", 1)), 25
     start = (page - 1) * per
     rows = list(qs[start : start + per])
+    total_pages = max((qs.count() + per - 1) // per, 1)
     return render(
         request,
         "tenders.html",
@@ -91,7 +92,9 @@ def tender_list(request):
             "total": qs.count(),
             "page": page,
             "per": per,
-            "pages": max((qs.count() + per - 1) // per, 1),
+            "pages": total_pages,
+            "prev_page": page - 1 if page > 1 else None,
+            "next_page": page + 1 if page < total_pages else None,
             "q": q,
             "status": status,
             "agency": agency,

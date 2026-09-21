@@ -449,3 +449,17 @@ class CategoryWatch(models.Model):
 
     class Meta:
         db_table = "proc_category_watch"
+
+# Phase 2-4 additional models
+from workflow.models_phases import (
+    ApprovalRouting,
+    BidReceipt,
+    CommitteeDissent,
+    ContractGuarantee,
+    ContractMilestone,
+    ContractVariation,
+    DebriefRequest,
+    EvaluationReport,
+    PaymentSchedule,
+    SupplierPerformanceRating,
+)

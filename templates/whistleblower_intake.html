@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Report Corruption Anonymously" %} - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-3xl">
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">
+                {% trans "Report Corruption Anonymously" %}
+            </h1>
+            <p class="text-gray-600">
+                {% trans "Your identity is protected. All submissions are encrypted before leaving your browser." %}
+            </p>
+        </div>
+
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-blue-700">
+                        {% trans "This form uses end-to-end encryption. We cannot read your report without the decryption key, which only the anti-corruption unit has." %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <form id="whistleblower-form" class="space-y-6">
+            {% csrf_token %}
+            <input type="hidden" name="encryption_key" value="{{ one_time_key }}">
+            <input type="hidden" name="encrypted_content" id="encrypted_content">
+            
+            <div>
+                <label for="tender_ocid" class="block text-sm font-medium text-gray-700 mb-2">
+                    {% trans "Related Tender OCID (optional)" %}
+                </label>
+                <input type="text" 
+                       id="tender_ocid" 
+                       name="tender_ocid"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                       placeholder="TAR-2025-001234">
+                <p class="mt-1 text-sm text-gray-500">
+                    {% trans "If your report is about a specific tender, enter its OCID here." %}
+                </p>
+            </div>
+
+            <div>
+                <label for="category" class="block text-sm font-medium text-gray-700 mb-2">
+                    {% trans "Category of Concern" %} <span class="text-red-500">*</span>
+                </label>
+                <select id="category" 
+                        name="category" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="">{% trans "Select a category" %}</option>
+                    <option value="bid_rigging">{% trans "Bid Rigging" %}</option>
+                    <option value="collusion">{% trans "Supplier Collusion" %}</option>
+                    <option value="conflict_interest">{% trans "Conflict of Interest" %}</option>
+                    <option value="fraud">{% trans "Fraud or Misrepresentation" %}</option>
+                    <option value="bribery">{% trans "Bribery or Kickbacks" %}</option>
+                    <option value="specification_capture">{% trans "Specification Capture" %}</option>
+                    <option value="other">{% trans "Other" %}</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="report_content" class="block text-sm font-medium text-gray-700 mb-2">
+                    {% trans "Your Report" %} <span class="text-red-500">*</span>
+                </label>
+                <textarea id="report_content" 
+                          name="report_content"
+                          rows="10" 
+                          required
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                          placeholder="{% trans 'Please provide as much detail as possible. Include dates, names, amounts, and any evidence you have.' %}"></textarea>
+                <p class="mt-1 text-sm text-gray-500">
+                    {% trans "Your report will be encrypted before submission. Be specific and factual." %}
+                </p>
+            </div>
+
+            <div>
+                <label for="contact_preference" class="block text-sm font-medium text-gray-700 mb-2">
+                    {% trans "Contact Preference (optional)" %}
+                </label>
+                <input type="text" 
+                       id="contact_preference" 
+                       name="contact_preference"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                       placeholder="{% trans 'e.g., Create a throwaway email for follow-up' %}">
+                <p class="mt-1 text-sm text-gray-500">
+                    {% trans "If you want to be contacted, provide anonymous contact info. This will also be encrypted." %}
+                </p>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input id="confirm_anonymous" 
+                           name="confirm_anonymous" 
+                           type="checkbox" 
+                           required
+                           class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
+                </div>
+                <div class="ml-3 text-sm">
+                    <label for="confirm_anonymous" class="font-medium text-gray-700">
+                        {% trans "I understand this submission is anonymous and encrypted" %}
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button type="submit" 
+                        id="submit-btn"
+                        class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-md transition duration-200">
+                    {% trans "Submit Encrypted Report" %}
+                </button>
+                <button type="button" 
+                        onclick="window.history.back()"
+                        class="px-6 py-3 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition duration-200">
+                    {% trans "Cancel" %}
+                </button>
+            </div>
+        </form>
+
+        <div id="success-message" class="hidden mt-6 bg-green-50 border-l-4 border-green-400 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">{% trans "Report Submitted Successfully" %}</h3>
+                    <div class="mt-2 text-sm text-green-700">
+                        <p class="mb-2"><strong>{% trans "Case ID:" %}</strong> <span id="case-id-display"></span></p>
+                        <p class="mb-2"><strong>{% trans "Verification Hash:" %}</strong> <span id="hash-display" class="font-mono text-xs"></span></p>
+                        <p>{% trans "Save these details to check the status of your report later." %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="error-message" class="hidden mt-6 bg-red-50 border-l-4 border-red-400 p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-red-700" id="error-text"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('whistleblower-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '{% trans "Encrypting and submitting..." %}';
+    
+    try {
+        // Get form data
+        const formData = new FormData(this);
+        const reportContent = formData.get('report_content');
+        const tenderOcid = formData.get('tender_ocid');
+        const category = formData.get('category');
+        const contactPreference = formData.get('contact_preference');
+        const encryptionKey = formData.get('encryption_key');
+        
+        // Combine all data
+        const payload = {
+            tender_ocid: tenderOcid,
+            category: category,
+            report: reportContent,
+            contact_preference: contactPreference,
+            timestamp: new Date().toISOString(),
+        };
+        
+        // Encrypt the payload (using Web Crypto API)
+        const encoder = new TextEncoder();
+        const data = encoder.encode(JSON.stringify(payload));
+        
+        // Use the encryption key as the basis for encryption
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw',
+            encoder.encode(encryptionKey),
+            { name: 'PBKDF2' },
+            false,
+            ['deriveBits', 'deriveKey']
+        );
+        
+        const key = await crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode('taraba-whistleblower-salt'),
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt']
+        );
+        
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encrypted = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: iv },
+            key,
+            data
+        );
+        
+        // Combine IV + encrypted data and base64 encode
+        const combined = new Uint8Array(iv.length + encrypted.byteLength);
+        combined.set(iv);
+        combined.set(new Uint8Array(encrypted), iv.length);
+        const encryptedBase64 = btoa(String.fromCharCode(...combined));
+        
+        // Update the hidden field
+        document.getElementById('encrypted_content').value = encryptedBase64;
+        
+        // Submit the form
+        const response = await fetch('/whistleblower/submit/', {
+            method: 'POST',
+            body: new FormData(this),
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+            },
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show success message
+            document.getElementById('case-id-display').textContent = result.case_id;
+            document.getElementById('hash-display').textContent = result.verification_hash;
+            document.getElementById('success-message').classList.remove('hidden');
+            document.getElementById('whistleblower-form').classList.add('hidden');
+            
+            // Clear the form
+            this.reset();
+        } else {
+            throw new Error(result.error || 'Submission failed');
+        }
+        
+    } catch (error) {
+        console.error('Submission error:', error);
+        document.getElementById('error-text').textContent = error.message;
+        document.getElementById('error-message').classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '{% trans "Submit Encrypted Report" %}';
+    }
+});
+</script>
+{% endblock %}

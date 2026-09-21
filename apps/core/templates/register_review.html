@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Registration review queue{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Registration review queue</h1>
+  <div class="tabs">
+    {% for s in statuses %}
+    <a href="?status={{ s }}" class="tab {% if status == s %}active{% endif %}">{{ s }} ({{ counts|get_item:s }})</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% for d in drafts %}
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <h3>{{ d.company_name|default:"(unnamed)" }}</h3>
+      <dl>
+        <dt>RC</dt><dd>{{ d.rc_number|default:"—" }}</dd>
+        <dt>TIN</dt><dd>{{ d.tin|default:"—" }}</dd>
+        <dt>Category</dt><dd>{{ d.get_category_display|default:"—" }}</dd>
+        <dt>Contact</dt><dd>{{ d.full_name|default:"—" }} — {{ d.email|default:"—" }}</dd>
+        <dt>Phone</dt><dd>{{ d.phone|default:"—" }}</dd>
+        <dt>Step</dt><dd>{{ d.current_step }}/6</dd>
+        <dt>Submitted</dt><dd>{{ d.submitted_at|date:"d M Y H:i"|default:"—" }}</dd>
+      </dl>
+    </div>
+    <div>
+      <h4>Documents</h4>
+      {% for doc in d.documents.all %}
+      <p>{{ doc.get_kind_display }}: <span class="badge">{{ doc.verification_status }}</span>
+        {% if doc.expiry_date %}(expires {{ doc.expiry_date|date:"d M Y" }}){% endif %}
+      </p>
+      {% empty %}
+      <p class="muted">No documents uploaded.</p>
+      {% endfor %}
+
+      <h4>Owners ({{ d.owners.count }})</h4>
+      {% for o in d.owners.all %}
+      <p>{{ o.owner_name }} — {{ o.pct }}% {% if o.is_pep %}<span class="badge bad">PEP</span>{% endif %}</p>
+      {% empty %}
+      <p class="muted">None declared.</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% if d.status == "SUBMITTED" or d.status == "VERIFYING" %}
+  <div class="form-actions">
+    <button class="btn primary" data-action="approve" data-token="{{ d.draft_token }}">Approve</button>
+    <button class="btn bad" data-action="reject" data-token="{{ d.draft_token }}">Reject</button>
+  </div>
+  {% endif %}
+  {% if d.review_notes %}
+  <p class="muted">Review notes: {{ d.review_notes }}</p>
+  {% endif %}
+</div>
+{% empty %}
+<div class="card"><p class="muted">No registrations in "{{ status }}" status.</p></div>
+{% endfor %}
+{% endblock %}

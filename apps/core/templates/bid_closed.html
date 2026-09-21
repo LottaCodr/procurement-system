@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Tender closed{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Submission closed</h1>
+  <p>This tender is no longer accepting bids.</p>
+  <dl>
+    <dt>Tender</dt><dd><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> — {{ t.title }}</dd>
+    <dt>Status</dt><dd>{{ t.get_status_display }}</dd>
+    <dt>Deadline was</dt><dd>{{ t.submission_close_at|date:"d M Y H:i" }}</dd>
+  </dl>
+</div>
+{% endblock %}

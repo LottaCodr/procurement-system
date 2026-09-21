@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Supplier performance ratings{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Supplier performance ratings</h1>
+  <p>Performance ratings are computed from contract delivery data: timeliness, quality (snag count),
+  and variation ratio. Ratings are published so a good contractor in any LGA gets known without
+  meeting an official. The methodology is public.</p>
+  <div class="filters">
+    {% for code, label in grades %}
+    <a href="?grade={{ code }}" class="btn {% if grade_filter == code %}primary{% endif %}">{{ label }}</a>
+    {% endfor %}
+    <a href="/tenders/ratings/" class="btn">All</a>
+  </div>
+</div>
+
+{% if sorted_suppliers %}
+<div class="card">
+  <h2>Rated suppliers</h2>
+  <table class="data">
+    <thead><tr><th>Supplier</th><th>Category</th><th>Ratings</th><th>Avg composite</th><th>Best grade</th></tr></thead>
+    <tbody>
+    {% for data in sorted_suppliers %}
+    <tr>
+      <td><a href="/tenders/suppliers/{{ data.supplier.pk }}/">{{ data.supplier.legal_name }}</a></td>
+      <td>{{ data.supplier.get_category_display }}</td>
+      <td>{{ data.ratings|length }}</td>
+      <td>{{ data.avg_composite|floatformat:0 }}/100</td>
+      <td>
+        {% with best=data.ratings.0 %}
+        <span class="badge grade-{{ best.grade }}">{{ best.get_grade_display }}</span>
+        {% endwith %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Recent ratings</h2>
+  <table class="data">
+    <thead><tr><th>Supplier</th><th>Contract</th><th>Grade</th><th>Timeliness</th><th>Quality</th><th>Variation</th><th>Composite</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for r in ratings %}
+    <tr>
+      <td><a href="/tenders/suppliers/{{ r.supplier.pk }}/">{{ r.supplier.legal_name }}</a></td>
+      <td><a href="/tenders/contracts/{{ r.contract.reference }}/">{{ r.contract.reference }}</a></td>
+      <td><span class="badge grade-{{ r.grade }}">{{ r.get_grade_display }}</span></td>
+      <td>{{ r.timeliness_score|floatformat:0 }}</td>
+      <td>{{ r.quality_score|floatformat:0 }}</td>
+      <td>{{ r.variation_score|floatformat:0 }}</td>
+      <td><strong>{{ r.composite|floatformat:0 }}</strong></td>
+      <td>{{ r.rated_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

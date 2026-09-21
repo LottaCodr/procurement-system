@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ s.legal_name }} — Supplier Profile{% endblock %}
+{% block content %}
+<nav class="crumb"><a href="/tenders/suppliers/">Suppliers</a> &rsaquo; {{ s.legal_name }}</nav>
+
+<div class="card">
+  <h1>{{ s.legal_name }}</h1>
+  <div class="grid-2">
+    <div>
+      <dl>
+        <dt>RC Number</dt><dd>{{ s.rc_number|default:"—" }}</dd>
+        <dt>TIN</dt><dd>{{ s.tin|default:"—" }}</dd>
+        <dt>PenCom</dt><dd>{{ s.pencom|default:"—" }}</dd>
+        <dt>Category</dt><dd>{{ s.get_category_display }}</dd>
+        <dt>Scope</dt><dd>{{ s.get_scope_display }}</dd>
+        <dt>State / LGA</dt><dd>{{ s.state }}{{ s.lga|yesno:" / ," }}{{ s.lga }}</dd>
+        <dt>Year incorporated</dt><dd>{{ s.year_incorporated|default:"—" }}</dd>
+        <dt>Email</dt><dd><a href="mailto:{{ s.email }}">{{ s.email }}</a></dd>
+        <dt>Phone</dt><dd>{{ s.phone }}</dd>
+      </dl>
+    </div>
+    <div>
+      <h3>Verification status</h3>
+      {% if verifications %}
+      <table class="data">
+        <thead><tr><th>Credential</th><th>Status</th><th>Verified</th><th>Expires</th></tr></thead>
+        <tbody>
+        {% for kind, v in verifications.items %}
+        <tr>
+          <td>{{ v.get_kind_display }}</td>
+          <td><span class="badge {% if v.status == 'PASSED' %}ok{% elif v.status == 'FAILED' %}bad{% endif %}">{{ v.status }}</span></td>
+          <td>{{ v.verified_at|date:"d M Y"|default:"—" }}</td>
+          <td>{{ v.expires_at|date:"d M Y"|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">No verifications on record.</p>
+      {% endif %}
+
+      {% if is_debarred %}
+      <div class="alert bad">
+        <strong>Debarred</strong> from {{ s.debarred_from|date:"d M Y" }}
+        {% if s.debarred_to %} to {{ s.debarred_to|date:"d M Y" }}{% endif %}.
+        {{ s.debarment_reason }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if s.bo_declared and s.owners.exists %}
+<div class="card">
+  <h2>Beneficial ownership (≥5%)</h2>
+  <table class="data">
+    <thead><tr><th>Owner</th><th>RC (if corporate)</th><th>Share %</th><th>PEP</th></tr></thead>
+    <tbody>
+    {% for o in s.owners.all %}
+    <tr>
+      <td>{{ o.owner_name }}</td>
+      <td>{{ o.owner_rc_number|default:"—" }}</td>
+      <td>{{ o.pct }}%</td>
+      <td>{{ o.is_pep|yesno:"Yes,No" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if ratings %}
+<div class="card">
+  <h2>Performance ratings</h2>
+  <p class="muted">Average composite score: <strong>{{ avg_composite|floatformat:1 }}/100</strong></p>
+  <table class="data">
+    <thead><tr><th>Contract</th><th>Grade</th><th>Timeliness</th><th>Quality</th><th>Variation</th><th>Composite</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for r in ratings %}
+    <tr>
+      <td><a href="/tenders/contracts/{{ r.contract.reference }}/">{{ r.contract.reference }}</a></td>
+      <td><span class="badge grade-{{ r.grade }}">{{ r.get_grade_display }}</span></td>
+      <td>{{ r.timeliness_score|floatformat:0 }}</td>
+      <td>{{ r.quality_score|floatformat:0 }}</td>
+      <td>{{ r.variation_score|floatformat:0 }}</td>
+      <td>{{ r.composite|floatformat:0 }}</td>
+      <td>{{ r.rated_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Awards won ({{ awards.count }})</h2>
+  {% if awards %}
+  <table class="data">
+    <thead><tr><th>OCID</th><th>Title</th><th>Agency</th><th>Amount</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for a in awards %}
+    <tr>
+      <td><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.ocid }}</a></td>
+      <td>{{ a.tender.title|truncatechars:60 }}</td>
+      <td>{{ a.tender.agency.code }}</td>
+      <td>₦{{ a.amount|floatformat:2 }}</td>
+      <td>{{ a.published_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No awards on record.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Bids submitted ({{ bids.count }})</h2>
+  {% if bids %}
+  <table class="data">
+    <thead><tr><th>OCID</th><th>Title</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for b in bids %}
+    <tr>
+      <td><a href="/tenders/{{ b.tender.ocid }}/">{{ b.tender.ocid }}</a></td>
+      <td>{{ b.tender.title|truncatechars:60 }}</td>
+      <td>{% if b.amount %}₦{{ b.amount|floatformat:2 }}{% else %}—{% endif %}</td>
+      <td><span class="badge">{{ b.get_status_display }}</span></td>
+      <td>{{ b.submitted_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No bids submitted.</p>
+  {% endif %}
+</div>
+{% endblock %}

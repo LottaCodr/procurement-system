@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Objections — {{ t.ocid }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Objections
+</nav>
+
+<div class="card">
+  <h1>Objections &amp; appeals</h1>
+  <p class="muted">{{ t.title }} — {{ t.agency.name }}</p>
+  <p>Objections are filed within 10 working days of award publication. The Georgia mechanism:
+  a credible objection freezes the tender for 10 days while an independent panel decides.
+  Half the panel is nominated by civil society, and the Bureau cannot reject those nominees.</p>
+</div>
+
+{% for o in objections %}
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <h3>Objection #{{ o.pk }}</h3>
+      <dl>
+        <dt>Award</dt>
+        <dd>{% if o.award %}₦{{ o.award.amount|floatformat:2 }} to {{ o.award.bid.supplier.legal_name }}{% else %}—{% endif %}</dd>
+        <dt>Filed by</dt><dd>{{ o.filed_by_label }}</dd>
+        <dt>Filed at</dt><dd>{{ o.filed_at|date:"d M Y H:i" }}</dd>
+        <dt>Outcome</dt>
+        <dd><span class="badge {% if o.outcome == 'UPHELD' %}bad{% elif o.outcome == 'DISMISSED' %}ok{% endif %}">{{ o.get_outcome_display }}</span></dd>
+        {% if o.frozen_until %}
+        <dt>Frozen until</dt><dd>{{ o.frozen_until|date:"d M Y H:i" }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+    <div>
+      <h4>Ground</h4>
+      <p>{{ o.ground }}</p>
+      {% if o.decision %}
+      <h4>Decision</h4>
+      <p>{{ o.decision }}</p>
+      <p class="tiny">Decided {{ o.decided_at|date:"d M Y H:i" }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if o.panelists.exists %}
+  <h4>Panel composition</h4>
+  <table class="data">
+    <thead><tr><th>Name</th><th>Nominator</th><th>Role</th></tr></thead>
+    <tbody>
+    {% for p in o.panelists.all %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td><span class="badge {% if p.nominator == 'CSO' %}ok{% endif %}">{{ p.get_nominator_display }}</span></td>
+      <td>{{ p.role|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <a href="/tenders/objections/{{ o.pk }}/" class="btn">View detail</a>
+</div>
+{% empty %}
+<div class="card"><p class="muted">No objections have been filed on this tender.</p></div>
+{% endfor %}
+{% endblock %}

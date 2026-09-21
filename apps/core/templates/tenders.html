@@ -34,8 +34,8 @@
   </tbody>
 </table>
 <p class="tiny">Page {{ page }} of {{ pages }} &middot;
-{% if page > 1 %}<a href="?page={{ page|add:'-1 }}&q={{ q }}&agency={{ agency }}&status={{ status }}">&larr; previous</a>{% endif %}
-{% if page < pages %} <a href="?page={{ page|add:'1' }}&q={{ q }}&agency={{ agency }}&status={{ status }}">next &rarr;</a>{% endif %}</p>
+{% if prev_page %}<a href="?page={{ prev_page }}&q={{ q }}&agency={{ agency }}&status={{ status }}">&larr; previous</a>{% endif %}
+{% if next_page %} <a href="?page={{ next_page }}&q={{ q }}&agency={{ agency }}&status={{ status }}">next &rarr;</a>{% endif %}</p>
 {% else %}
 <div class="empty">Nothing matches those filters. That is a real answer, not a placeholder.</div>
 {% endif %}

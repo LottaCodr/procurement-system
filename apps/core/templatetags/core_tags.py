@@ -88,3 +88,34 @@ def status_tag(value) -> str:
 @register.filter
 def hash_short(value) -> str:
     return f"{value[:12]}…" if value and len(value) > 12 else (value or "—")
+
+
+@register.filter
+def get_item(dictionary, key):
+    """Dict lookup in templates: {{ mydict|get_item:key }}."""
+    if isinstance(dictionary, dict):
+        return dictionary.get(key)
+    return None
+
+
+@register.filter
+def total_weight(criteria_list):
+    """Sum of criterion weights for display."""
+    try:
+        return sum(c.weight for c in criteria_list)
+    except (TypeError, AttributeError):
+        return 0
+
+
+@register.filter
+def filesizeformat(value):
+    """Format bytes as human-readable file size."""
+    try:
+        b = int(value)
+    except (TypeError, ValueError):
+        return "0 B"
+    for unit in ("B", "KB", "MB", "GB"):
+        if abs(b) < 1024:
+            return f"{b:.1f} {unit}" if unit != "B" else f"{b} {unit}"
+        b /= 1024
+    return f"{b:.1f} TB"

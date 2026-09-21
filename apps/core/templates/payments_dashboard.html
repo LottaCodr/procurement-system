@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Payment certifications{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Payment certifications</h1>
+  <p>The payment lock: no platform record, no payment. Finance policy is that
+  payment certification requires a published award, an accepted delivery certificate (CRAC),
+  and a valid guarantee. This page makes the lock visible.</p>
+  <div class="metric">
+    <span class="num">₦{{ total_certified|floatformat:0 }}</span>
+    <span class="lbl">Total certified for payment</span>
+  </div>
+</div>
+
+{% if awaiting %}
+<div class="card">
+  <h2>Awaiting payment certification</h2>
+  <p>These contracts have been accepted but payment has not yet been certified.</p>
+  <table class="data">
+    <thead><tr><th>Contract</th><th>Supplier</th><th>Value</th><th>Accepted</th><th>Agency</th></tr></thead>
+    <tbody>
+    {% for c in awaiting %}
+    <tr>
+      <td><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></td>
+      <td>{{ c.award.bid.supplier.legal_name }}</td>
+      <td>₦{{ c.value|floatformat:2 }}</td>
+      <td>{{ c.acceptances.first.inspected_at|date:"d M Y"|default:"—" }}</td>
+      <td>{{ c.award.tender.agency.code }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Certified payments</h2>
+  <table class="data">
+    <thead><tr><th>Reference</th><th>Contract</th><th>Supplier</th><th>Amount</th><th>Certified by</th><th>Treasury ref</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for p in certs %}
+    <tr>
+      <td>{{ p.reference }}</td>
+      <td><a href="/tenders/contracts/{{ p.contract.reference }}/">{{ p.contract.reference }}</a></td>
+      <td>{{ p.contract.award.bid.supplier.legal_name }}</td>
+      <td>₦{{ p.amount|floatformat:2 }}</td>
+      <td>{{ p.certified_by.get_full_name|default:p.certified_by.username }}</td>
+      <td>{{ p.treasury_ref|default:"—" }}</td>
+      <td>{{ p.certified_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

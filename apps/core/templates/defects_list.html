@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Defects Liability Period - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">Defects Liability Period</h1>
+    
+    <p class="text-gray-600 mb-8">
+        Contracts currently in their defects liability period. Suppliers must rectify defects before retention money is released.
+    </p>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contract</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Days Remaining</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Open Defects</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for cd in contract_data %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <a href="{% url 'defects-detail' cd.contract.id %}" class="text-green-600 hover:text-green-800 font-semibold">
+                            {{ cd.contract.reference }}
+                        </a>
+                        <p class="text-sm text-gray-500">{{ cd.contract.award.tender.title|truncatewords:8 }}</p>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ cd.contract.award.bid.supplier.legal_name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ₦{{ cd.contract.value|floatformat:2 }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm {% if cd.remaining_days < 30 %}text-red-600 font-semibold{% else %}text-gray-900{% endif %}">
+                        {{ cd.remaining_days }} days
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm {% if cd.open_defects > 0 %}text-red-600 font-semibold{% else %}text-green-600{% endif %}">
+                        {{ cd.open_defects }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <a href="{% url 'defects-detail' cd.contract.id %}" class="text-green-600 hover:text-green-800">
+                            View Details
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                        No contracts currently in defects liability period
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4">
+        <div class="flex">
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800">About Defects Liability</h3>
+                <div class="mt-2 text-sm text-blue-700">
+                    <p>During the defects liability period (typically 12 months after completion), the supplier must rectify any defects at their own cost. Retention money (typically 5% of contract value) is held until all defects are resolved and the period expires.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

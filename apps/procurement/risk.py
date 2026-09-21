@@ -62,10 +62,32 @@ INDICATORS: dict[str, dict] = {
         "definition": "Suspiciously simultaneous submissions can indicate an insider "
                       "watching the counter.",
     },
+    "T08_WINNER_ROTATION": {
+        "name": "Suspicious winner rotation among fixed set",
+        "public": True,
+        "definition": "A fixed group of suppliers taking turns winning contracts in "
+                      "the same LGA or category, suggesting bid-rigging cartel. "
+                      "Computed across all tenders in the last 12 months.",
+    },
+    "T09_SPEC_CAPTURE": {
+        "name": "Specification written for one supplier",
+        "public": True,
+        "definition": "Evaluation criteria or technical specifications that reference "
+                      "a specific brand, model, or proprietary certification that only "
+                      "one bidder holds. Computed by scanning criteria text for brand "
+                      "names and proprietary terms.",
+    },
     "T10_VARIATION_INFLATION": {
         "name": "Contract grew >10% after signature",
         "public": True,
         "definition": "Post-award variations and claims exceeding 10% of signed value.",
+    },
+    "T11_CYCLE_TIME": {
+        "name": "Abnormally short procurement cycle",
+        "public": True,
+        "definition": "Tender published to award in fewer days than the legal minimum "
+                      "advertising period for the method. Indicates the outcome was "
+                      "decided before the process started.",
     },
     "T12_DIRECT_DRIFT": {
         "name": "Direct procurement share above 5%",
@@ -188,6 +210,69 @@ def evaluate_tender(tender, *, include_private: bool = True) -> list[dict]:
                 )
             )
 
+    # T09 specification capture ----------------------------------------------
+    # Scan criteria text for brand names, model numbers, or proprietary terms
+    # that would only match one supplier. This is a heuristic check.
+    if tender.status in ("OPENED", "EVALUATING", "AWARDED", "CONTRACTED"):
+        criteria = list(tender.criteria.all())
+        brand_indicators = ["brand", "model", "make", "manufacturer", "proprietary",
+                           "certified by", "authorized by", "exclusive", "patented"]
+        for criterion in criteria:
+            desc_lower = (criterion.description or "").lower()
+            spec_lower = (criterion.specification or "").lower()
+            text = desc_lower + " " + spec_lower
+            
+            # Check for brand-specific language
+            matches = [term for term in brand_indicators if term in text]
+            if matches:
+                # If only one bidder meets this criterion, it's suspicious
+                bidders_matching = sum(
+                    1 for b in bids
+                    if b.scores.filter(criterion=criterion, score__gte=criterion.min_score).exists()
+                )
+                if bidders_matching == 1 and len(bids) > 1:
+                    flags.append(
+                        _flag(
+                            "T09_SPEC_CAPTURE",
+                            f"Criterion '{criterion.name}' contains brand-specific terms "
+                            f"({', '.join(matches[:3])}) and only 1 of {len(bids)} bidders meets it.",
+                            criterion=criterion.name,
+                            terms=matches[:3],
+                            severity="HIGH",
+                        )
+                    )
+
+    # T11 cycle-time anomaly -------------------------------------------------
+    # Check if tender went from published to awarded faster than legal minimum
+    if tender.published_at and tender.awards.exists():
+        from datetime import timedelta
+        
+        # Get legal minimum advertising days for this method
+        min_days = {
+            "NCB": 21,
+            "ICB": 30,
+            "RFQ": 7,
+            "SHOPPING": 3,
+            "DIRECT": 0,
+        }.get(tender.method, 14)
+        
+        # Find earliest award date
+        earliest_award = tender.awards.order_by("created_at").first()
+        if earliest_award and earliest_award.created_at:
+            cycle_days = (earliest_award.created_at - tender.published_at).days
+            if cycle_days < min_days and min_days > 0:
+                flags.append(
+                    _flag(
+                        "T11_CYCLE_TIME",
+                        f"Tender awarded in {cycle_days} days, below legal minimum of "
+                        f"{min_days} days for {tender.method}. Suggests pre-determined outcome.",
+                        cycle_days=cycle_days,
+                        min_days=min_days,
+                        method=tender.method,
+                        severity="HIGH",
+                    )
+                )
+
     if not include_private:
         flags = [f for f in flags if f["public"]]
     return _dedupe(flags)
@@ -274,3 +359,84 @@ def losing_spin(window: int = 5) -> list[dict]:
         if p.b >= window and p.a == 0:
             out.append(_flag("T05_LOSING_SPIN", f"{p.legal_name} bid on {p.b} tenders and won none.", severity="MEDIUM", bids=p.b))
     return out
+
+
+def winner_rotation(agency=None, months: int = 12, min_tenders: int = 5) -> list[dict]:
+    """T08: suspicious winner rotation among a fixed set of suppliers.
+    
+    Detects when the same small group of suppliers takes turns winning
+    contracts from the same agency, suggesting a bid-rigging cartel.
+    """
+    from procurement.models import Tender, Award
+    from procurement.models_party import Party
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    cutoff = timezone.now() - timedelta(days=months * 30)
+    
+    # Get tenders with awards in the period
+    tenders_qs = Tender.objects.filter(
+        published_at__gte=cutoff,
+        awards__isnull=False,
+    ).exclude(status="DRAFT")
+    
+    if agency:
+        tenders_qs = tenders_qs.filter(agency=agency)
+    
+    # Group by agency and category
+    from collections import defaultdict
+    groups = defaultdict(list)
+    
+    for tender in tenders_qs.select_related("agency"):
+        for award in tender.awards.select_related("bid__supplier"):
+            key = (tender.agency_id, tender.method)
+            groups[key].append({
+                "tender": tender.ocid,
+                "supplier": award.bid.supplier.legal_name,
+                "supplier_id": award.bid.supplier_id,
+                "date": tender.published_at,
+            })
+    
+    flags = []
+    
+    for (agency_id, method), awards_list in groups.items():
+        if len(awards_list) < min_tenders:
+            continue
+        
+        # Count wins per supplier
+        from collections import Counter
+        supplier_wins = Counter(a["supplier_id"] for a in awards_list)
+        
+        # If a small group (2-4 suppliers) wins most contracts, suspicious
+        top_suppliers = supplier_wins.most_common(4)
+        if len(top_suppliers) >= 2:
+            top_ids = set(s[0] for s in top_suppliers)
+            top_wins = sum(s[1] for s in top_suppliers)
+            total_awards = len(awards_list)
+            
+            # If top 2-4 suppliers win >80% of contracts
+            if top_wins / total_awards > 0.8 and len(top_suppliers) <= 4:
+                # Check if they're taking turns (no one dominates)
+                win_counts = [s[1] for s in top_suppliers]
+                max_wins = max(win_counts)
+                min_wins = min(win_counts)
+                
+                # If the ratio is close (no one has 3x more wins than another)
+                if min_wins > 0 and max_wins / min_wins < 3:
+                    supplier_names = [
+                        Party.objects.get(id=s[0]).legal_name
+                        for s in top_suppliers
+                    ]
+                    flags.append(
+                        _flag(
+                            "T08_WINNER_ROTATION",
+                            f"{len(top_suppliers)} suppliers ({', '.join(supplier_names)}) "
+                            f"won {top_wins} of {total_awards} {method} contracts "
+                            f"({top_wins/total_awards*100:.0f}%), taking turns.",
+                            suppliers=supplier_names,
+                            win_counts=dict(zip(supplier_names, win_counts)),
+                            severity="HIGH",
+                        )
+                    )
+    
+    return flags

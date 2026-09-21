@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Evaluation — {{ t.ocid }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Evaluation
+</nav>
+
+<div class="card">
+  <h1>Evaluation workspace</h1>
+  <p class="muted">{{ t.title }} — {{ t.agency.name }} ({{ t.agency.code }})</p>
+  <div class="meta">
+    <span class="badge">{{ t.get_status_display }}</span>
+    <span>Bids received: {{ t.bids.count }}</span>
+    <span>Committee: {{ committee|length }} members</span>
+    {% if t.opening_at %}<span>Opened: {{ t.opening_at|date:"d M Y H:i" }}</span>{% endif %}
+  </div>
+</div>
+
+{% if committee %}
+<div class="card">
+  <h2>Evaluation committee</h2>
+  <p class="muted">Formed at or after public bid opening. Each member filed a conflict-of-interest declaration.</p>
+  <table class="data">
+    <thead><tr><th>Member</th><th>Role</th><th>Formed</th><th>Declaration</th></tr></thead>
+    <tbody>
+    {% for m in committee %}
+    <tr>
+      <td>{{ m.user.get_full_name|default:m.user.username }}</td>
+      <td>{{ m.role }}</td>
+      <td>{{ m.formed_at|date:"d M Y H:i" }}</td>
+      <td><code class="tiny">{{ m.declaration_sha256|truncatechars:16 }}</code></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if criteria %}
+<div class="card">
+  <h2>Evaluation criteria (locked at publication)</h2>
+  <table class="data">
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Weight</th><th>Min score</th></tr></thead>
+    <tbody>
+    {% for c in criteria %}
+    <tr>
+      <td><code>{{ c.code }}</code></td>
+      <td>{{ c.name }}</td>
+      <td>{{ c.get_kind_display }}</td>
+      <td>{{ c.weight }}%</td>
+      <td>{{ c.min_score }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="tiny">Total weight: {{ criteria|total_weight }}%. Criteria are locked after publication — weights cannot be changed.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Scorecard</h2>
+  {% if scorecard %}
+  <div class="table-scroll">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Bidder</th>
+        <th>Amount</th>
+        {% for c in criteria %}<th title="{{ c.name }}">{{ c.code }} ({{ c.weight }}%)</th>{% endfor %}
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in scorecard %}
+    <tr {% if forloop.first %}class="leader"{% endif %}>
+      <td>{{ row.bid.supplier.legal_name }}</td>
+      <td>₦{{ row.bid.amount|floatformat:2|default:"—" }}</td>
+      {% for c in criteria %}
+      <td>
+        {% with sc=row.scores|get_item:c.code %}
+        {% if sc.score %}
+          {{ sc.score.raw|floatformat:1 }}
+          {% if sc.dissents %}<span class="badge warn" title="Dissent recorded">!</span>{% endif %}
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+        {% endwith %}
+      </td>
+      {% endfor %}
+      <td><strong>{{ row.total }}</strong></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No bids have been scored yet.</p>
+  {% endif %}
+
+  {% if can_score and user_on_committee %}
+  <div class="card-inner">
+    <h3>Enter scores</h3>
+    <p>Scores are entered per-bidder, per-criterion, with a mandatory narrative justification.
+    Scores are immutable once saved.</p>
+    <p>Use the API: <code>POST /api/wf/tenders/{{ t.ocid }}/scores</code></p>
+  </div>
+  {% endif %}
+</div>
+
+{% if routing %}
+<div class="card">
+  <h2>Approval routing</h2>
+  <dl>
+    <dt>Required approving body</dt>
+    <dd><strong>{{ routing.get_required_body_display }}</strong></dd>
+    <dt>Reason</dt><dd>{{ routing.required_reason }}</dd>
+    <dt>Approved by</dt>
+    <dd>{% if routing.approved_by_body %}{{ routing.get_approved_by_body_display }} ({{ routing.approved_at|date:"d M Y" }}){% else %}<span class="badge warn">Pending</span>{% endif %}</dd>
+    <dt>Correct authority?</dt>
+    <dd>{% if routing.is_correct %}<span class="badge ok">Yes</span>{% else %}<span class="badge bad">No</span>{% endif %}</dd>
+  </dl>
+</div>
+{% endif %}
+
+{% if report %}
+<div class="card">
+  <h2>Evaluation report</h2>
+  <p>{{ report.summary }}</p>
+  {% if report.methodology %}<p><strong>Methodology:</strong> {{ report.methodology }}</p>{% endif %}
+  <p class="tiny">Published {{ report.published_at|date:"d M Y H:i" }} · {{ report.signed_by_count }} signatories · {{ report.dissents_count }} dissents recorded</p>
+  <a href="/tenders/{{ t.ocid }}/evaluation/report/" class="btn">View full report</a>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Related</h2>
+  <ul>
+    <li><a href="/tenders/{{ t.ocid }}/">Tender detail</a></li>
+    <li><a href="/tenders/{{ t.ocid }}/evaluation/report/">Evaluation report</a></li>
+    <li><a href="/tenders/{{ t.ocid }}/objections/">Objections</a></li>
+    <li><a href="/tenders/{{ t.ocid }}/debriefs/">Debriefs</a></li>
+  </ul>
+</div>
+{% endblock %}

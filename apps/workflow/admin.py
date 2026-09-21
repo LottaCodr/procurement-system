@@ -71,6 +71,67 @@ class CatalogueAdmin(admin.ModelAdmin):
     list_filter = ("category", "is_active")
 
 
+# Phase 2-4 additional model admin
+from workflow.models_phases import (
+    ApprovalRouting,
+    ContractGuarantee,
+    ContractMilestone,
+    ContractVariation,
+    DebriefRequest,
+    EvaluationReport,
+    PaymentSchedule,
+    SupplierPerformanceRating,
+)
+
+
+@admin.register(SupplierPerformanceRating)
+class PerformanceRatingAdmin(admin.ModelAdmin):
+    list_display = ("supplier", "contract", "grade", "composite", "rated_at", "published")
+    list_filter = ("grade", "published")
+    search_fields = ("supplier__legal_name", "contract__reference")
+
+
+@admin.register(DebriefRequest)
+class DebriefAdmin(admin.ModelAdmin):
+    list_display = ("award", "supplier", "status", "requested_at", "due_by", "responded_at")
+    list_filter = ("status",)
+
+
+@admin.register(ApprovalRouting)
+class ApprovalRoutingAdmin(admin.ModelAdmin):
+    list_display = ("tender", "required_body", "approved_by_body", "is_correct", "approved_at")
+    list_filter = ("required_body", "is_correct")
+
+
+@admin.register(EvaluationReport)
+class EvalReportAdmin(admin.ModelAdmin):
+    list_display = ("tender", "published_at", "signed_by_count", "dissents_count")
+
+
+@admin.register(ContractMilestone)
+class MilestoneAdmin(admin.ModelAdmin):
+    list_display = ("contract", "seq", "title", "planned_date", "actual_date", "status")
+    list_filter = ("status",)
+
+
+@admin.register(ContractVariation)
+class VariationAdmin(admin.ModelAdmin):
+    list_display = ("contract", "title", "amount_change", "status", "alarm_triggered")
+    list_filter = ("status", "alarm_triggered")
+
+
+@admin.register(ContractGuarantee)
+class GuaranteeAdmin(admin.ModelAdmin):
+    list_display = ("contract", "kind", "issuer", "amount", "expires_at", "is_valid")
+    list_filter = ("kind", "is_valid")
+
+
+@admin.register(PaymentSchedule)
+class PaymentScheduleAdmin(admin.ModelAdmin):
+    list_display = ("contract", "seq", "description", "amount", "paid")
+    list_filter = ("paid",)
+
+
 @admin.register(PurchaseOrder, CatalogueQuote, AwardRecommendation, DissentNote,
                 ClarificationPost, ObjectionPanelist, ObjectionEvidence,
                 CategoryWatch, TenderWatch, TranslationString, UserLanguagePreference, MFASession)

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Submit bid — {{ t.ocid }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Submit bid
+</nav>
+
+<div class="card">
+  <h1>Submit a bid</h1>
+  <dl>
+    <dt>Tender</dt><dd>{{ t.ocid }} — {{ t.title }}</dd>
+    <dt>Agency</dt><dd>{{ t.agency.name }}</dd>
+    <dt>Method</dt><dd>{{ t.get_method_display }}</dd>
+    <dt>Estimate</dt><dd>{{ t.estimate_display }}</dd>
+    <dt>Deadline</dt><dd>{{ t.submission_close_at|date:"d M Y H:i" }} UTC ({{ t.days_to_close }} days remaining)</dd>
+    {% if t.bid_security_amount %}<dt>Bid security</dt><dd>₦{{ t.bid_security_amount|floatformat:2 }}</dd>{% endif %}
+  </dl>
+</div>
+
+{% if lots %}
+<div class="card">
+  <h2>Lots</h2>
+  <table class="data">
+    <thead><tr><th>#</th><th>Title</th><th>Quantity</th><th>Estimate</th></tr></thead>
+    <tbody>
+    {% for l in lots %}
+    <tr>
+      <td>{{ l.seq }}</td><td>{{ l.title }}</td>
+      <td>{% if l.quantity %}{{ l.quantity }} {{ l.unit }}{% else %}—{% endif %}</td>
+      <td>{% if l.est_value %}₦{{ l.est_value|floatformat:2 }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if criteria %}
+<div class="card">
+  <h2>Evaluation criteria</h2>
+  <table class="data">
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Weight</th></tr></thead>
+    <tbody>
+    {% for c in criteria %}
+    <tr><td>{{ c.code }}</td><td>{{ c.name }}</td><td>{{ c.get_kind_display }}</td><td>{{ c.weight }}%</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Bid submission</h2>
+  {% if not user_party %}
+  <div class="alert warn">
+    <strong>You must be a registered, verified supplier to submit a bid.</strong>
+    <a href="/register/">Register here</a>.
+  </div>
+  {% else %}
+  <p>Your bid is encrypted client-side with the tender's public key. The server never sees plaintext
+  until the public bid opening ceremony. Your commitment hash is published immediately as your receipt.</p>
+  <form id="bid-form" class="form-stacked">
+    {% csrf_token %}
+    <label>Bid amount (₦) <input type="number" name="amount" step="0.01" required></label>
+    <label>Delivery duration (days) <input type="number" name="duration_days" value="90"></label>
+    <label>Declaration
+      <textarea name="declaration" rows="4" placeholder="I declare that this bid is genuine, that I have no undisclosed relationships with evaluation committee members, and that I meet all published criteria."></textarea>
+    </label>
+    <button type="submit" class="btn primary">Encrypt &amp; submit bid</button>
+  </form>
+  {% endif %}
+
+  <div class="card-inner">
+    <h3>Sealing key</h3>
+    {% if public_keys %}
+    <p>The tender's public encryption key is published. Your browser encrypts the bid before sending it.</p>
+    <p class="tiny">Custodians: {{ public_keys|length }} — keys are released at the public opening ceremony.</p>
+    {% else %}
+    <p class="muted">Sealing key not yet available.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

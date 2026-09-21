@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Reverse Auctions - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">Reverse Auctions</h1>
+    
+    <p class="text-gray-600 mb-8">
+        Electronic reverse auctions for competitive price discovery. Bids are visible only as rank and delta-to-L1.
+    </p>
+
+    {% if live_auctions %}
+    <div class="mb-8">
+        <h2 class="text-2xl font-semibold mb-4 text-green-600">🔴 Live Auctions</h2>
+        <div class="grid gap-4">
+            {% for auction in live_auctions %}
+            <a href="{% url 'auction-detail' auction.id %}" class="block bg-white rounded-lg shadow hover:shadow-lg transition p-6 border-l-4 border-green-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">{{ auction.tender.title }}</h3>
+                        <p class="text-sm text-gray-600 mt-1">{{ auction.tender.ocid }}</p>
+                        <p class="text-sm text-gray-500 mt-2">Reserve: ₦{{ auction.reserve_price|floatformat:2 }}</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-2xl font-bold text-green-600">{{ auction.bids.count }}</div>
+                        <div class="text-sm text-gray-600">Bids</div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if upcoming_auctions %}
+    <div class="mb-8">
+        <h2 class="text-2xl font-semibold mb-4 text-blue-600">📅 Upcoming Auctions</h2>
+        <div class="grid gap-4">
+            {% for auction in upcoming_auctions %}
+            <a href="{% url 'auction-detail' auction.id %}" class="block bg-white rounded-lg shadow hover:shadow-lg transition p-6 border-l-4 border-blue-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">{{ auction.tender.title }}</h3>
+                        <p class="text-sm text-gray-600 mt-1">{{ auction.tender.ocid }}</p>
+                        <p class="text-sm text-gray-500 mt-2">Starts: {{ auction.starts_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if ended_auctions %}
+    <div class="mb-8">
+        <h2 class="text-2xl font-semibold mb-4 text-gray-600">✓ Ended Auctions</h2>
+        <div class="grid gap-4">
+            {% for auction in ended_auctions %}
+            <a href="{% url 'auction-detail' auction.id %}" class="block bg-white rounded-lg shadow hover:shadow-lg transition p-6 border-l-4 border-gray-300">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">{{ auction.tender.title }}</h3>
+                        <p class="text-sm text-gray-600 mt-1">{{ auction.tender.ocid }}</p>
+                        <p class="text-sm text-gray-500 mt-2">Ended: {{ auction.ends_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-2xl font-bold text-gray-600">{{ auction.bids.count }}</div>
+                        <div class="text-sm text-gray-600">Bids</div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not live_auctions and not upcoming_auctions and not ended_auctions %}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No auctions available
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

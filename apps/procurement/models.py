@@ -802,12 +802,31 @@ class Contract(Timestamped):
     duration_days = models.PositiveIntegerField()
     advance_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
     perf_guarantee_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("10"))
+    retention_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("5"),
+        help_text="Retention money percentage held until defects liability ends"
+    )
+    retention_released = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0"),
+        help_text="Amount of retention money released"
+    )
     defect_days = models.PositiveIntegerField(default=365)
+    defects_liability_end = models.DateTimeField(
+        null=True, blank=True,
+        help_text="End of defects liability period (signed_at + defect_days)"
+    )
     location = models.CharField(max_length=200, blank=True)
     deliverables = models.TextField(blank=True)
 
     class Meta:
         db_table = "proc_contract"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate defects_liability_end if not set."""
+        from datetime import timedelta
+        if self.signed_at and not self.defects_liability_end:
+            self.defects_liability_end = self.signed_at + timedelta(days=self.defect_days)
+        super().save(*args, **kwargs)
 
     @property
     def variation_pct(self) -> Decimal:

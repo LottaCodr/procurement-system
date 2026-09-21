@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Objection #{{ o.pk }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ o.tender.ocid }}/">{{ o.tender.ocid }}</a> &rsaquo;
+  <a href="/tenders/{{ o.tender.ocid }}/objections/">Objections</a> &rsaquo; #{{ o.pk }}
+</nav>
+
+<div class="card">
+  <h1>Objection #{{ o.pk }}</h1>
+  <div class="meta">
+    <span class="badge {% if o.outcome == 'UPHELD' %}bad{% elif o.outcome == 'DISMISSED' %}ok{% endif %}">{{ o.get_outcome_display }}</span>
+    {% if o.frozen_until %}<span>Frozen until {{ o.frozen_until|date:"d M Y H:i" }}</span>{% endif %}
+  </div>
+  <dl>
+    <dt>Tender</dt><dd><a href="/tenders/{{ o.tender.ocid }}/">{{ o.tender.ocid }}</a> — {{ o.tender.title }}</dd>
+    <dt>Award</dt>
+    <dd>{% if o.award %}₦{{ o.award.amount|floatformat:2 }} to {{ o.award.bid.supplier.legal_name }} ({{ o.award.bid.supplier.rc_number }}){% else %}—{% endif %}</dd>
+    <dt>Filed by</dt><dd>{{ o.filed_by_label }}</dd>
+    <dt>Filed at</dt><dd>{{ o.filed_at|date:"d M Y H:i" }}</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Ground</h2>
+  <p>{{ o.ground }}</p>
+</div>
+
+<div class="card">
+  <h2>Panel composition</h2>
+  <p>The Georgia mechanism requires an independent panel with civil society representation.
+  The Bureau cannot reject CSO nominees.</p>
+  <div class="grid-2">
+    <div>
+      <h3>Government nominees</h3>
+      {% for p in gov_panelists %}
+      <p><strong>{{ p.name }}</strong> — {{ p.role|default:"Panel member" }}</p>
+      {% empty %}<p class="muted">None appointed.</p>{% endfor %}
+    </div>
+    <div>
+      <h3>Civil society nominees</h3>
+      {% for p in cso_panelists %}
+      <p><strong>{{ p.name }}</strong> — {{ p.role|default:"Panel member" }}</p>
+      {% empty %}<p class="muted">None appointed.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if evidence_public %}
+<div class="card">
+  <h2>Evidence</h2>
+  <table class="data">
+    <thead><tr><th>Description</th><th>Hash</th><th>Uploaded</th></tr></thead>
+    <tbody>
+    {% for e in evidence_public %}
+    <tr>
+      <td>{{ e.description }}</td>
+      <td><code class="tiny">{{ e.sha256|truncatechars:20 }}</code></td>
+      <td>{{ e.uploaded_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if o.decision %}
+<div class="card">
+  <h2>Decision</h2>
+  <p>{{ o.decision }}</p>
+  <p class="tiny">Decided {{ o.decided_at|date:"d M Y H:i" }}</p>
+</div>
+{% endif %}
+{% endblock %}

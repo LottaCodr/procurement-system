@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Evaluation report — {{ t.ocid }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Evaluation report
+</nav>
+
+<div class="card">
+  <h1>Evaluation report</h1>
+  <p class="muted">{{ t.title }} — {{ t.agency.name }} ({{ t.agency.code }})</p>
+</div>
+
+{% if report %}
+<div class="card">
+  <h2>Summary</h2>
+  <p>{{ report.summary }}</p>
+  {% if report.methodology %}
+  <h3>Methodology</h3>
+  <p>{{ report.methodology }}</p>
+  {% endif %}
+  <p class="tiny">Published {{ report.published_at|date:"d M Y H:i" }} · {{ report.signed_by_count }} committee members signed · {{ report.dissents_count }} dissents recorded</p>
+</div>
+{% endif %}
+
+{% if committee %}
+<div class="card">
+  <h2>Committee</h2>
+  <table class="data">
+    <thead><tr><th>Member</th><th>Role</th><th>Formed</th></tr></thead>
+    <tbody>
+    {% for m in committee %}
+    <tr>
+      <td>{{ m.user.get_full_name|default:m.user.username }}</td>
+      <td>{{ m.role }}</td>
+      <td>{{ m.formed_at|date:"d M Y H:i" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Scores</h2>
+  {% if criteria %}
+  <table class="data">
+    <thead>
+      <tr><th>Bidder</th><th>Amount</th>
+      {% for c in criteria %}<th>{{ c.code }} ({{ c.weight }}%)</th>{% endfor %}
+      <th>Total</th></tr>
+    </thead>
+    <tbody>
+    {% for b in bids %}
+    <tr>
+      <td>{{ b.supplier.legal_name }}</td>
+      <td>₦{{ b.amount|floatformat:2 }}</td>
+      {% for c in criteria %}
+      <td>{% for s in b.scores.all %}{% if s.criterion_id == c.pk %}{{ s.raw|floatformat:1 }}{% endif %}{% endfor %}</td>
+      {% endfor %}
+      <td>{{ b.score_total|floatformat:1 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}
