@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: taraba_procure
+      POSTGRES_USER: taraba_app
+      POSTGRES_PASSWORD: ${PGPASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taraba_app -d taraba_procure"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate --no-input &&
+             python manage.py collectstatic --no-input &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+    ports:
+      - "8000:8000"
+    environment:
+      - USE_POSTGRES=1
+      - PGDATABASE=taraba_procure
+      - PGUSER=taraba_app
+      - PGPASSWORD=${PGPASSWORD:-changeme}
+      - PGHOST=db
+      - PGPORT=5432
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-changeme-in-production}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-0}
+      - TARABA_HTTPS=${TARABA_HTTPS:-1}
+      - SEALED_BID_DEMO=${SEALED_BID_DEMO:-1}
+      - SMS_PROVIDER=${SMS_PROVIDER:-console}
+      - CONTACT_PHONE=${CONTACT_PHONE:-+234 800 000 0000}
+      - CONTACT_EMAIL=${CONTACT_EMAIL:-bpp@tr.gov.ng}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  static_volume:

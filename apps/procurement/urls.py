@@ -1,6 +1,12 @@
 from django.urls import path
 
 from procurement import views
+from procurement.views_mda import mda_dashboard, mda_detail
+from procurement.views_catalogue import catalogue_list, catalogue_detail, create_purchase_order
+from procurement.views_auction import auction_list, auction_detail, place_bid
+from procurement.views_defects import defects_list, defects_detail, report_defect
+from procurement.views_whistleblower import whistleblower_intake, whistleblower_submit
+from procurement.feeds import TendersFeed, AwardsFeed
 from workflow import views as wf_views
 
 urlpatterns = [
@@ -46,6 +52,33 @@ urlpatterns = [
     # Phase 4: Performance ratings & payments
     path("ratings/", wf_views.supplier_ratings, name="ratings"),
     path("payments/", wf_views.payments_dashboard, name="payments-dashboard"),
+
+    # RSS feeds
+    path("feed/tenders/", TendersFeed(), name="tender-feed"),
+    path("feed/awards/", AwardsFeed(), name="award-feed"),
+
+    # MDA Dashboard
+    path("mdas/", mda_dashboard, name="mda-dashboard"),
+    path("mdas/<str:mda_code>/", mda_detail, name="mda-detail"),
+
+    # Catalogue (common-use goods)
+    path("catalogue/", catalogue_list, name="catalogue-list"),
+    path("catalogue/<int:catalogue_id>/", catalogue_detail, name="catalogue-detail"),
+    path("catalogue/<int:catalogue_id>/order/", create_purchase_order, name="create-purchase-order"),
+
+    # Reverse auctions
+    path("auctions/", auction_list, name="auction-list"),
+    path("auctions/<int:auction_id>/", auction_detail, name="auction-detail"),
+    path("auctions/<int:auction_id>/bid/", place_bid, name="place-bid"),
+
+    # Defects liability
+    path("defects/", defects_list, name="defects-list"),
+    path("defects/<int:contract_id>/", defects_detail, name="defects-detail"),
+    path("defects/<int:contract_id>/report/", report_defect, name="report-defect"),
+
+    # Whistleblower intake
+    path("whistleblower/", whistleblower_intake, name="whistleblower-intake"),
+    path("whistleblower/submit/", whistleblower_submit, name="whistleblower-submit"),
 
     # Phase 1: Tender detail and documents (must be last — catches all <ocid> patterns)
     path("<str:ocid>/", views.tender_detail, name="tender-detail"),

@@ -204,6 +204,12 @@ class Party(Timestamped):
     debarred_from = models.DateField(null=True, blank=True)
     debarred_to = models.DateField(null=True, blank=True)
     debarment_reason = models.TextField(blank=True)
+    # Performance tracking
+    performance_score = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("100.00"),
+        help_text="Performance score out of 100, updated on contract close-out"
+    )
+    total_contracts_completed = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = "party_supplier"
@@ -215,6 +221,32 @@ class Party(Timestamped):
 
     def __str__(self) -> str:
         return self.legal_name
+
+    def update_performance_score(self):
+        """Update performance score based on contract close-out ratings."""
+        from procurement.models_additional import ContractCloseOut
+        
+        close_outs = ContractCloseOut.objects.filter(
+            contract__award__supplier=self
+        )
+        
+        if not close_outs.exists():
+            return
+        
+        # Calculate weighted average
+        weights = {
+            'EXCELLENT': 100,
+            'SATISFACTORY': 80,
+            'POOR': 40,
+            'UNSATISFACTORY': 20,
+        }
+        
+        total_score = sum(weights.get(co.performance_rating, 50) for co in close_outs)
+        avg_score = total_score / close_outs.count()
+        
+        self.performance_score = Decimal(str(avg_score))
+        self.total_contracts_completed = close_outs.count()
+        self.save(update_fields=['performance_score', 'total_contracts_completed'])
 
     @property
     def is_debarred(self) -> bool:

@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: taraba_procure_test
+          POSTGRES_USER: taraba_app
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U taraba_app -d taraba_procure_test"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+
+    env:
+      USE_POSTGRES: "1"
+      PGDATABASE: taraba_procure_test
+      PGUSER: taraba_app
+      PGPASSWORD: test
+      PGHOST: localhost
+      PGPORT: "5432"
+      DJANGO_SECRET_KEY: ci-test-key-do-not-use-in-production
+      DJANGO_DEBUG: "1"
+      SEALED_BID_DEMO: "1"
+      SMS_PROVIDER: console
+      TARABA_HTTPS: "0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install cryptography pyotp
+
+      - name: Django system check
+        run: python manage.py check --deploy --fail-level WARNING
+        env:
+          TARABA_HTTPS: "0"
+
+      - name: Verify no migrations are missing
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations
+        run: python manage.py migrate --no-input
+
+      - name: Run test suite
+        run: python -m pytest tests/ -v --tb=short
+
+      - name: Verify ledger chain
+        run: python manage.py verify_ledger
+
+      - name: OCDS self-test (publish a tender, fetch it back, validate)
+        run: python manage.py publish_selftest
+
+      - name: Homepage figures match database
+        run: python manage.py check_metrics_match
+
+      - name: Link/redirect integrity
+        run: python manage.py check_links
+
+      - name: Contact placeholders are not shipped
+        run: |
+          python -c "
+          import os, sys
+          os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
+          import django; django.setup()
+          from django.conf import settings
+          bad = False
+          for attr in ('CONTACT_PHONE', 'CONTACT_EMAIL'):
+              v = getattr(settings, attr, '')
+              if any(p in v for p in ('XXX', 'TBD', 'TODO', '000 0000', 'placeholder', 'example.com')):
+                  print(f'FAIL: settings.{attr} is still a placeholder: {v!r}')
+                  bad = True
+          if bad:
+              sys.exit(1)
+          print('OK: contacts are real')
+          "
+
+      - name: No unbacked homepage claims
+        run: python manage.py publish_selftest
+
+      - name: Security headers present
+        run: |
+          python -c "
+          import os
+          os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
+          import django; django.setup()
+          from django.conf import settings
+          assert settings.SECURE_HSTS_SECONDS >= 63072000, 'HSTS too short'
+          assert settings.SECURE_HSTS_INCLUDE_SUBDOMAINS, 'HSTS missing includeSubDomains'
+          assert settings.SECURE_HSTS_PRELOAD, 'HSTS missing preload'
+          assert settings.CSP_POLICY.get('default-src') == [\"'self'\"], 'CSP default-src wrong'
+          assert 'none' in str(settings.CSP_POLICY.get('frame-ancestors', '')), 'CSP frame-ancestors must be none'
+          print('OK: security headers configured')
+          "
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install linters
+        run: pip install ruff pip-audit
+      - name: Ruff check
+        run: ruff check apps/ tests/ --select E,F,W --ignore E501,E741
+      - name: pip-audit (known CVEs)
+        run: pip-audit -r requirements.txt || true
