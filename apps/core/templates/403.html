@@ -15,8 +15,9 @@
       <li><a href="/tenders/open-data/">Open data and the API</a></li>
       <li><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Sign in</a> if you are a Bureau or MDA officer</li>
     </ul>
-    <p class="tiny">If you expected access, the Bureau's help desk can check your role:
-      {{ CONTACT_PHONE }}.</p>
+    <p class="tiny">If you expected access, the Bureau's help desk can check your role —
+      see <a href="/tenders/help/">Help</a>{% if CONTACT_PHONE_REAL %}, or telephone
+      {{ CONTACT_PHONE }}{% endif %}.</p>
   </div>
 </div>
 {% endblock %}

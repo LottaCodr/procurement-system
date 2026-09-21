@@ -69,8 +69,8 @@
     <div class="card">
       <h2>Help with the form</h2>
       <p>Assisted desks in each local government area will fill the form in with you, free of charge.
-      <a href="/tenders/agent-desk/">Find the nearest desk</a>, or telephone
-      <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>.</p>
+      <a href="/tenders/agent-desk/">Find the nearest desk</a>{% if CONTACT_PHONE_REAL %}, or telephone
+      <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>{% endif %}.</p>
       <p class="tiny">No one may charge you a fee to register. Anyone who does is committing an offence
       and you can <a href="/tenders/whistleblower/">report it anonymously</a>.</p>
     </div>

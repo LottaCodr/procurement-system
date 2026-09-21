@@ -9,7 +9,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.utils import timezone
 
-from core import css_build
+from core import contacts, css_build
 
 
 def platform(request):
@@ -17,8 +17,9 @@ def platform(request):
         "PLATFORM_NAME": settings.PLATFORM_NAME,
         "PLATFORM_ABBREV": settings.PLATFORM_ABBREV,
         "STATE_NAME": settings.STATE_NAME,
-        "CONTACT_PHONE": settings.CONTACT_PHONE,
-        "CONTACT_EMAIL": settings.CONTACT_EMAIL,
+        # Whether the telephone line and email are real, not just configured:
+        # a page must never send a citizen to a number nobody answers.
+        **contacts.contact_state(),
         "SUPPORT_HOURS": settings.SUPPORT_HOURS,
         "YEAR": timezone.now().year,
         # The single stylesheet is content-addressed, so a deploy invalidates

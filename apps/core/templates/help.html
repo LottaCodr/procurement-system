@@ -99,8 +99,10 @@
           another language, the Bureau's help desk can assist by telephone.</li>
       </ul>
       <p class="tiny">If something here does not work for you, that is a defect and we want it:
-      <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a> or
-      <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>.</p>
+      {% if CONTACT_EMAIL_REAL %}<a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>{% endif %}
+      {% if CONTACT_EMAIL_REAL and CONTACT_PHONE_REAL %}or{% endif %}
+      {% if CONTACT_PHONE_REAL %}<a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>
+      {% else %}<a href="/tenders/agent-desk/">an assisted desk</a>{% endif %}.</p>
     </section>
 
     <section id="novice" aria-labelledby="novice-h">
@@ -116,8 +118,14 @@
     <div class="card">
       <h2>Contact the Bureau</h2>
       <dl class="kv kv--stack">
-        <dt>Telephone</dt><dd><a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></dd>
-        <dt>Email</dt><dd><a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></dd>
+        <dt>Telephone</dt>
+        <dd>{% if CONTACT_PHONE_REAL %}<a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>
+            {% else %}<span class="muted">Not yet published — the Bureau publishes the line once
+            it has been called and confirmed, rather than printing a number that rings nowhere.</span>
+            {% endif %}</dd>
+        <dt>Email</dt>
+        <dd>{% if CONTACT_EMAIL_REAL %}<a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>
+            {% else %}<span class="muted">Not yet published</span>{% endif %}</dd>
         <dt>Opening hours</dt><dd>{{ SUPPORT_HOURS }}</dd>
         <dt>Address</dt><dd>Bureau of Public Procurement, Jalingo, {{ STATE_NAME }}</dd>
       </dl>

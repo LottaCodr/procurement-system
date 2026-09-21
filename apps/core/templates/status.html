@@ -65,13 +65,30 @@
 
   <section class="card" aria-labelledby="contact-h">
     <h2 id="contact-h">Someone to reach</h2>
+    {% if not CONTACT_PHONE_REAL %}
+      <div class="callout callout--warn" role="status">
+        <span class="callout__title">The telephone line is not yet published</span>
+        <p>No line has been called and answered, so this site does not print a number — a number that
+        rings nowhere is worse than none, and on a page about reporting corruption it is a real
+        hazard. The gap is recorded here until it is closed. Meanwhile, use the
+        <a href="/tenders/help/">help page</a>{% if CONTACT_EMAIL_REAL %}, email
+        <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>{% endif %} or an
+        <a href="/tenders/agent-desk/">assisted bidding desk</a>.</p>
+      </div>
+    {% endif %}
     <dl class="kv kv--stack">
-      <dt>Telephone</dt><dd><a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></dd>
-      <dt>Email</dt><dd><a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></dd>
+      <dt>Telephone</dt>
+      <dd>{% if CONTACT_PHONE_REAL %}<a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>
+          {% else %}<span class="tag tag--warn">not yet published</span>{% endif %}</dd>
+      <dt>Email</dt>
+      <dd>{% if CONTACT_EMAIL_REAL %}<a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>
+          {% else %}<span class="tag tag--warn">not yet published</span>{% endif %}</dd>
       <dt>Hours</dt><dd>{{ SUPPORT_HOURS }}</dd>
     </dl>
     <p class="tiny">A published contact that is never tested is the most common lie on a government
-    website. These are called and emailed during the release checklist.</p>
+    website. {% if CONTACT_ANY_REAL %}The contact points above are called and emailed as part of the
+    release checklist.{% else %}Until a line has been called and answered, this page says so instead
+    of printing one — the release checklist will not pass while this notice is showing.{% endif %}</p>
   </section>
 </div>
 

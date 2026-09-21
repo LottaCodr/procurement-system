@@ -21,7 +21,6 @@ from decimal import Decimal
 
 import pytest
 from django.test import Client
-from django.urls import reverse
 from django.utils import timezone
 
 from core import css_build
@@ -210,11 +209,46 @@ def test_every_form_control_is_labelled(dataset):
 @pytest.mark.django_db
 def test_help_is_in_the_same_place_on_every_page(dataset):
     """WCAG 2.2 SC 3.2.6 Consistent Help: the contact route must not move."""
+    from core.contacts import contact_state
+
+    state = contact_state()
     client = Client()
     for url in ["/", "/tenders/", "/tenders/awards/", "/tenders/status/", "/tenders/help/"]:
         html = client.get(url).content.decode()
         assert "/tenders/help/" in html, f"{url} does not link to help"
-        assert "tel:" in html, f"{url} does not expose the telephone contact"
+        if state["CONTACT_PHONE_REAL"]:
+            assert "tel:" in html, f"{url} does not expose the telephone contact"
+
+
+@pytest.mark.django_db
+def test_a_placeholder_contact_is_never_presented_as_real(dataset):
+    """A number that rings nowhere is worse than no number: the page must say
+    the line is unpublished and offer a route that works."""
+    from core.contacts import is_real_phone, is_placeholder
+
+    assert is_placeholder("+234 800 000 0000")
+    assert not is_real_phone("+234 800 000 0000")
+    assert is_real_phone("+234 809 111 2222")
+
+    if is_real_phone(contact_phone()):
+        pytest.skip("a real telephone line is configured")
+
+    client = Client()
+    for url in ["/", "/tenders/", "/tenders/help/", "/tenders/status/", "/tenders/agent-desk/",
+                "/tenders/whistleblower/"]:
+        html = client.get(url).content.decode()
+        assert "tel:" not in html, f"{url} links a telephone number that is not published"
+        assert "000 0000" not in html, f"{url} prints the unconfigured number"
+    status = client.get("/tenders/status/").content.decode()
+    assert "telephone line is not yet published" in status.lower(), (
+        "the status page must record that the telephone line is unpublished"
+    )
+
+
+def contact_phone() -> str:
+    from django.conf import settings
+
+    return settings.CONTACT_PHONE
 
 
 # ------------------------------------------------------------------- formatting
@@ -425,7 +459,6 @@ def test_no_public_page_leaks_a_python_value(dataset):
 
 
 def test_ledger_payload_reads_as_facts_not_as_a_dict():
-    from datetime import timedelta
 
     from core.templatetags.core_tags import ledger_payload
 

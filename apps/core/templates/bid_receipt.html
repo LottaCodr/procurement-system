@@ -18,7 +18,9 @@
     <div class="callout callout--danger" role="alert">
       <span class="callout__title">The receipt signature does not verify</span>
       <p>This receipt does not match the server's signature for the bid it names. Do not rely on it as
-      evidence of submission: telephone the Bureau immediately on {{ CONTACT_PHONE }}.</p>
+      evidence of submission: {% if CONTACT_PHONE_REAL %}telephone the Bureau immediately on
+      {{ CONTACT_PHONE }}{% else %}contact the Bureau through the route on the
+      <a href="/tenders/help/">help page</a>{% endif %} and quote the reference above.</p>
     </div>
   {% else %}
     <div class="callout callout--ok">

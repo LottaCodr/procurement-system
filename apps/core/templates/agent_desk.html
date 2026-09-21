@@ -76,8 +76,10 @@
     <div class="card">
       <h2>Telephone first</h2>
       <p>If you are travelling, ring the Bureau and ask for the desk in your LGA:
-        <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>{% if CONTACT_EMAIL %}, or email
-        <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>{% endif %}.</p>
+        {% if CONTACT_PHONE_REAL %}<a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>{% else %}
+        the telephone line is not yet published{% endif %}{% if CONTACT_EMAIL_REAL %}, or email
+        <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>{% endif %} — the desk list below
+        is the route that is open today.</p>
       <p class="tiny">{{ SUPPORT_HOURS }}. If a desk has no network on the day, the officer will record your
       bid on paper and enter it with a timestamp you both sign — the register notes entries added this way.</p>
     </div>

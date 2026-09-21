@@ -93,8 +93,9 @@
   <aside aria-label="Registration help">
     <div class="card">
       <h2>Stuck?</h2>
-      <p>Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a> during {{ SUPPORT_HOURS }},
-      or visit an <a href="/tenders/agent-desk/">assisted bidding desk</a>. Desk staff can enter the form
+      <p>{% if CONTACT_PHONE_REAL %}Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>
+      during {{ SUPPORT_HOURS }}, or visit{% else %}Visit{% endif %} an
+      <a href="/tenders/agent-desk/">assisted bidding desk</a>. Desk staff can enter the form
       with you; they cannot submit on your behalf or see your password.</p>
     </div>
     <div class="card">

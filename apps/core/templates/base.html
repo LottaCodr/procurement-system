@@ -118,8 +118,16 @@
         {# Help appears in the same place on every page: SC 3.2.6. #}
         <h2>Contact the Bureau</h2>
         <ul>
-          <li>Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></li>
-          <li>Email <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></li>
+          {% if CONTACT_PHONE_REAL %}
+            <li>Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></li>
+          {% else %}
+            {# Until the line is tested: send people to a route that works. #}
+            <li><a href="/tenders/help/">Telephone line not yet published</a> —
+              the help page says how to reach the Bureau</li>
+          {% endif %}
+          {% if CONTACT_EMAIL_REAL %}
+            <li>Email <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></li>
+          {% endif %}
           <li>{{ SUPPORT_HOURS }}</li>
           <li>Bureau of Public Procurement, Jalingo, {{ STATE_NAME }}</li>
         </ul>

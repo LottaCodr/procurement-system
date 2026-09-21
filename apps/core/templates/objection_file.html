@@ -78,9 +78,12 @@
         communicated back to you. Objections are filed inside the authenticated workspace; the panel
         composition and every decision are published here regardless.</p>
         <p><a class="btn btn--block" href="/accounts/login/?next={{ request.path|urlencode }}">Sign in to file</a></p>
-        <p class="tiny">No account? Telephone the Bureau on
-          <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a> during {{ SUPPORT_HOURS }} and an
-          officer will record the objection on the same register. You may also file it in writing by post.</p>
+        <p class="tiny">No account?
+          {% if CONTACT_PHONE_REAL %}Telephone the Bureau on
+          <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a> during {{ SUPPORT_HOURS }}{% else %}
+          Telephone the Bureau during {{ SUPPORT_HOURS }} — the number is published on the
+          <a href="/tenders/help/">help page</a>{% endif %} and an officer will record the objection
+          on the same register. You may also file it in writing by post.</p>
       {% else %}
         <p class="muted">Filing is closed for this award.</p>
       {% endif %}

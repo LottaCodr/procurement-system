@@ -12,7 +12,7 @@
     <ul>
       <li><a href="/tenders/">Once more from the tender register</a></li>
       <li><a href="/tenders/status/">Check whether we are aware of it — service status</a></li>
-      <li><a href="/tenders/help/">Telephone the Bureau: {{ CONTACT_PHONE }}</a></li>
+      <li><a href="/tenders/help/">{% if CONTACT_PHONE_REAL %}Telephone the Bureau: {{ CONTACT_PHONE }}{% else %}How to reach the Bureau{% endif %}</a></li>
     </ul>
   </div>
   <div class="card">
