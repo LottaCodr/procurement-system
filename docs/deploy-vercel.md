@@ -54,6 +54,11 @@ vercel env add DJANGO_SECRET_KEY production
 vercel --prod
 ```
 
+Python version: `.python-version` pins the build/runtime to **3.12**
+(Django 5.2 needs ≥3.10 — an older project that still defaults to 3.9 fails
+at dependency install). If a build dies at "install dependencies", check the
+project's Python version first.
+
 ## 4. Environment variables
 
 Set these for **Production** (and Preview, minus the production hostname):

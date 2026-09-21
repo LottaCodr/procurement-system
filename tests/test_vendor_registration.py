@@ -25,7 +25,7 @@ from django.test import Client
 from django.utils import timezone
 
 from procurement.models_party import Party, PartyVerification
-from workflow.models import DraftDocument, Notification, SupplierRegistrationDraft
+from workflow.models import Notification, SupplierRegistrationDraft
 from workflow.services import (
     approve_draft,
     decide_document,
