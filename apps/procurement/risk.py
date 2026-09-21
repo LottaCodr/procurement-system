@@ -217,10 +217,14 @@ def evaluate_tender(tender, *, include_private: bool = True) -> list[dict]:
         criteria = list(tender.criteria.all())
         brand_indicators = ["brand", "model", "make", "manufacturer", "proprietary",
                            "certified by", "authorized by", "exclusive", "patented"]
+        # The scanned text is exactly the text published to bidders: the
+        # criterion name and its description, plus the tender description where
+        # technical specifications are carried. Scanning a field that exists
+        # only in the risk engine's imagination is how this indicator used to
+        # take the whole tender page down with an AttributeError.
+        tender_text = (tender.description or "").lower()
         for criterion in criteria:
-            desc_lower = (criterion.description or "").lower()
-            spec_lower = (criterion.specification or "").lower()
-            text = desc_lower + " " + spec_lower
+            text = f"{criterion.name} {criterion.description} {tender_text}".lower()
             
             # Check for brand-specific language
             matches = [term for term in brand_indicators if term in text]

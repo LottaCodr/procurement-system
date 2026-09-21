@@ -45,6 +45,14 @@ class TenderCursorPagination(CursorPagination):
     ordering = "-published_at"
 
 
+class ContractCursorPagination(TenderCursorPagination):
+    """Contracts have no `published_at`; a cursor ordered by a field the model
+    does not have raises FieldError on the first request, which is how
+    /api/v1/contracts came to return 500 instead of the contract register."""
+
+    ordering = "-signed_at"
+
+
 @extend_schema(tags=["tenders"])
 class TenderViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """Read-only. There is no write path on the public API by design; bids are
@@ -151,7 +159,7 @@ class AwardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
 @extend_schema(tags=["contracts"])
 class ContractViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ContractSerializer
-    pagination_class = TenderCursorPagination
+    pagination_class = ContractCursorPagination
     queryset = Contract.objects.select_related("award__bid__supplier", "award__tender__agency").order_by("-signed_at")
 
 

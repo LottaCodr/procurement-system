@@ -69,6 +69,34 @@ def _fernet_key() -> bytes:
     return Fernet.generate_key()
 
 
+def report_fernet_key() -> bytes:
+    """Deterministic, deployment-scoped key for whistleblower report bodies.
+
+    `_fernet_key()` above deliberately generates a *fresh* key per call — it is
+    the per-tender sealing key, and a random key is the right thing there. Using
+    it for storage-at-rest would be a data-loss bug: every read would need the
+    key that produced the write. This key is derived from the deployment secret
+    instead, so any web process can decrypt what any other web process wrote.
+
+    Production note: rotate this by re-encrypting, and prefer holding the secret
+    in the state's own KMS rather than in the application environment.
+    """
+    material = hashlib.sha256(f"{settings.SECRET_KEY}:wb-report:v1".encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(material)
+
+
+def encrypt_report_body(body: str) -> str:
+    return Fernet(report_fernet_key()).encrypt(body.encode("utf-8")).decode("ascii")
+
+
+def decrypt_report_body(ciphertext: str) -> str:
+    """Used by the integrity unit's tooling, not by the public web views."""
+    try:
+        return Fernet(report_fernet_key()).decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise SealedBidError("Report ciphertext is not authentic for this deployment key") from exc
+
+
 def _custodian_keypair(custodian: str):
     """In production the custodians' private keys are on air-gapped hardware;
     for Phase 2 we generate ephemeral keys per process and publish the public

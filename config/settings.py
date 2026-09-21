@@ -35,6 +35,13 @@ ALLOWED_HOSTS = [
     ).split(",")
     if h
 ]
+# In DEBUG the host header is not a security boundary worth breaking the demo
+# over: previews, LAN demos and container hostnames all arrive as unknown
+# hosts, and the failure mode (a bare 400 "Bad Request" with no explanation) is
+# indistinguishable from an application bug. Production is unaffected: DEBUG is
+# 0 there and DJANGO_ALLOWED_HOSTS is mandatory.
+if DEBUG and not os.environ.get("DJANGO_ALLOWED_HOSTS"):
+    ALLOWED_HOSTS = ["*"]
 
 # ---------------------------------------------------------------- applications
 INSTALLED_APPS = [
@@ -50,9 +57,16 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # GZip first: text compresses ~5:1 and the audience is on metered mobile
+    # data. It costs one CPU pass per response to save real naira per visit.
+    "django.middleware.gzip.GZipMiddleware",
     "core.middleware.SecurityHeadersMiddleware",
     "core.middleware.RedirectMapMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # CSRF protection is on for every template view. The JSON API keeps its own
+    # DRF authentication story, and DRF's APIView is csrf_exempt by design.
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -66,7 +80,10 @@ ASGI_APPLICATION = "config.asgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [APPS_DIR / "core" / "templates"],
+        # Project-level templates first, then the core app's. The whistleblower
+        # intake template lived in `templates/` while DIRS pointed only at the app
+        # directory, so the page 500'd on every visit.
+        "DIRS": [BASE_DIR / "templates", APPS_DIR / "core" / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -100,7 +117,19 @@ DATABASES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/tenders/"
+LOGOUT_REDIRECT_URL = "/"
 AUTH_USER_MODEL = "procurement.User"
+
+# ------------------------------------------------------------------- locale
+# Deadlines are the core of this domain, and an hour of confusion at a bid
+# deadline is not a cosmetic bug: Nigerian bidders read WAT (UTC+1). Store UTC,
+# render Africa/Lagos, and label the timezone in the UI.
+LANGUAGE_CODE = "en"
+TIME_ZONE = "Africa/Lagos"
+USE_I18N = True
+USE_TZ = True
 
 # ------------------------------------------------------------------- security
 # The Kano audit found: no HSTS, CSP reduced to `upgrade-insecure-requests`,

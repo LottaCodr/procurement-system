@@ -48,7 +48,16 @@ class TenderQuerySet(models.QuerySet):
         return self.exclude(status__in=[Tender.Status.DRAFT, Tender.Status.CANCELLED_BEFORE_PUB])
 
     def open(self):
-        return self.filter(status=Tender.Status.OPEN, submission_close_at__gt=timezone.now())
+        """Tenders a bidder can still act on right now.
+
+        PUBLISHED and CLARIFYING are the two states in which submissions are
+        accepted; `Tender.Status.OPEN` never existed, so every caller of this
+        method used to raise AttributeError at request time.
+        """
+        return self.filter(
+            status__in=[Tender.Status.PUBLISHED, Tender.Status.CLARIFYING],
+            submission_close_at__gt=timezone.now(),
+        )
 
 
 class Tender(Timestamped):
@@ -483,6 +492,10 @@ class Criterion(models.Model):
     tender = models.ForeignKey(Tender, on_delete=models.CASCADE, related_name="criteria")
     code = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
+    # Published in full: a criterion nobody can read is a criterion nobody can
+    # challenge, and the specification-capture indicator (T09) is computed from
+    # this text, so it must be the text bidders actually see.
+    description = models.TextField(blank=True)
     weight = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
     kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.SCORED)
     min_score = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
@@ -896,3 +909,11 @@ class PaymentCertification(models.Model):
                 raise ValidationError({"contract": "Cannot certify payment on a contract that is not being performed."})
             if self.acceptance.value and self.amount and self.amount > self.acceptance.value:
                 raise ValidationError({"amount": "Certification cannot exceed the certified value."})
+
+
+# The catalogue / reverse-auction / defects-liability models live in
+# `models_additional.py`. Django only imports `models` automatically, so the
+# module is imported here: without this line the classes never enter the app
+# registry and `apps.get_model()` cannot see them (the tables exist, the
+# Python objects do not — a silent, confusing half-registration).
+from procurement import models_additional  # noqa: E402,F401  (registers models)

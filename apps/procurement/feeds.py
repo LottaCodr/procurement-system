@@ -54,7 +54,7 @@ class AwardsFeed(Feed):
     
     def item_description(self, item):
         return (
-            f"Supplier: {item.bid.supplier.name}\n"
+            f"Supplier: {item.bid.supplier.legal_name}\n"
             f"Amount: ₦{item.amount:,.2f}\n"
             f"Tender: {item.tender.title}\n\n"
             f"Reason: {item.reason}"
