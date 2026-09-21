@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Tender register &mdash; {{ PLATFORM_NAME }}{% endblock %}
+{% block content %}
+<h1>Tender register</h1>
+<p class="lead">{{ total }} processes. Search is server-side and works with JavaScript disabled; every row links to a permanent URL that never changes.</p>
+<form class="filters" method="get" action="/tenders/">
+  <label>Search<input name="q" value="{{ q }}" placeholder="title, reference, supplier"></label>
+  <label>Agency<select name="agency"><option value="">All</option>
+    {% for a in agency_list %}<option value="{{ a.code }}" {% if a.code == agency %}selected{% endif %}>{{ a.code }}</option>{% endfor %}</select></label>
+  <label>Status<select name="status"><option value="">All</option>
+    {% for s in "PUBLISHED CLOSED OPENED EVALUATING AWARDED CONTRACTED FROZEN" %}{% endfor %}
+    {% for s in statuses %}{% endfor %}
+    <option>PUBLISHED</option><option>CLOSED</option><option>OPENED</option><option>EVALUATING</option><option>AWARDED</option><option>CONTRACTED</option><option>FROZEN</option></select></label>
+  <label><span style="visibility:hidden">_</span><span><label style="flex-direction:row;gap:6px;display:flex"><input type="checkbox" name="open" value="1" {% if show_open %}checked{% endif %} style="max-width:none"> Open only</label></span></label>
+  <button class="btn" type="submit" style="font:inherit;padding:7px 14px;border:1px solid #0a7d3c;background:#0a7d3c;color:#fff;border-radius:6px">Apply</button>
+  <a class="tiny" href="/tenders/">clear</a>
+</form>
+
+{% if rows %}
+<table>
+  <thead><tr><th>Reference</th><th>Title</th><th>Agency</th><th class="num">Estimate</th><th>Method</th><th>Status</th><th>Closes</th></tr></thead>
+  <tbody>
+  {% for t in rows %}
+    <tr>
+      <td><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a><div class="tiny">{{ t.reference }}</div></td>
+      <td>{{ t.title }}{% if t.red_flag_codes %}<div>{% for f in t.red_flag_codes %}<span class="tag flag">{{ f }}</span> {% endfor %}</div>{% endif %}</td>
+      <td class="muted">{{ t.agency.code }}</td>
+      <td class="num">{{ t.est_value|naira }}</td>
+      <td><span class="tag">{{ t.method }}</span></td>
+      <td>{{ t.status|status_tag }}</td>
+      <td>{{ t.submission_close_at|deadline }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="tiny">Page {{ page }} of {{ pages }} &middot;
+{% if page > 1 %}<a href="?page={{ page|add:'-1 }}&q={{ q }}&agency={{ agency }}&status={{ status }}">&larr; previous</a>{% endif %}
+{% if page < pages %} <a href="?page={{ page|add:'1' }}&q={{ q }}&agency={{ agency }}&status={{ status }}">next &rarr;</a>{% endif %}</p>
+{% else %}
+<div class="empty">Nothing matches those filters. That is a real answer, not a placeholder.</div>
+{% endif %}
+{% endblock %}

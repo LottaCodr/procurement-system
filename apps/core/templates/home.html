@@ -1,0 +1,72 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ PLATFORM_NAME }} — tenders, awards and contracts, open by default{% endblock %}
+{% block content %}
+<h1>Taraba State public procurement, in the open</h1>
+<p class="lead">Every tender the state publishes, every award it makes, every contract variation and every
+payment certification &mdash; readable without an account, downloadable without a key, and
+protected by an append-only ledger the Bureau itself cannot silently edit.</p>
+
+<div class="grid c4">
+  <div class="kpi"><b>{{ m.open_tenders }}</b><span>tenders open right now</span></div>
+  <div class="kpi"><b>{{ m.published_this_year }}</b><span>tenders published this year</span></div>
+  <div class="kpi"><b>{{ m.awards_published }}</b><span>awards published</span></div>
+  <div class="kpi"><b>{{ m.total_award_value|naira }}</b><span>total award value</span></div>
+</div>
+<p class="tiny">Also live: {{ m.suppliers_verified }}/{{ m.suppliers_total }} suppliers with verified CAC identity &middot;
+{{ m.mdas_onboarding }}/{{ m.mdas_total }} MDAs transacting on the platform &middot;
+{{ m.ledger_events }} ledger events, chain {% if m.chain_valid %}<span class="tag ok">valid</span>{% else %}<span class="tag flag">{{ m.chain_detail }}</span>{% endif %}
+&middot; figures computed at {{ m.generated_at|shortdate }}, not typed in.</p>
+
+{% if upcoming %}
+<h2>Closing soonest</h2>
+<table>
+  <thead><tr><th>Reference</th><th>Tender</th><th>Agency</th><th class="num">Estimate</th><th>Method</th><th>Closes</th></tr></thead>
+  <tbody>
+  {% for t in upcoming %}
+    <tr>
+      <td><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></td>
+      <td>{{ t.title }}{% if t.red_flag_codes %} {% for f in t.red_flag_codes %}<span class="tag flag">{{ f }}</span>{% endfor %}{% endif %}</td>
+      <td class="muted">{{ t.agency.code }}</td>
+      <td class="num">{{ t.est_value|naira }}</td>
+      <td><span class="tag">{{ t.method }}</span></td>
+      <td>{{ t.submission_close_at|deadline }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty"><strong>No tenders are open right now.</strong><br>
+This page says so plainly instead of showing a placeholder.
+<a href="/tenders/?open=1">Check the register</a> or <a href="/tenders/awards/">read past awards</a>.</div>
+{% endif %}
+
+{% if recent_awards %}
+<h2>Recent awards</h2>
+<table>
+  <thead><tr><th>Published</th><th>Tender</th><th>Won by</th><th class="num">Award</th><th class="num">vs estimate</th></tr></thead>
+  <tbody>
+  {% for a in recent_awards %}
+    <tr>
+      <td class="muted">{{ a.published_at|shortdate }}</td>
+      <td><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a><div class="tiny">{{ a.tender.ocid }} &middot; {{ a.tender.agency.code }}</div></td>
+      <td>{{ a.bid.supplier.legal_name }}<div class="tiny">{{ a.bid.supplier.rc_number }}</div></td>
+      <td class="num">{{ a.amount|naira }}</td>
+      <td class="num">{% widthratio a.amount a.tender.est_value 100 %}%</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<div class="grid c4">
+  <div class="card"><h3>For contractors</h3>
+    <p class="tiny">Register once with RC and TIN. Upload certificates with their expiry dates; we re-verify annually and suspend on expiry, so a lapsed tax clearance cannot bid.</p>
+    <p><a href="/tenders/?open=1">Find tenders</a></p></div>
+  <div class="card"><h3>For the public</h3>
+    <p class="tiny">No account, no API key, no permission. Download a whole year of data, or query a single process down to its ledger events.</p>
+    <p><a href="/tenders/open-data/">Open data &amp; API</a></p></div>
+  <div class="card"><h3>For oversight</h3>
+    <p class="tiny">Twelve collusion indicators run on every tender and their definitions are published. If a flag appears on your process, so does the arithmetic behind it.</p>
+    <p><a href="/tenders/indicators/">Red-flag definitions</a></p></div>
+</div>
+{% endblock %}

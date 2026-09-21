@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Red-flag indicators{% endblock %}
+{% block content %}
+<h1>Red-flag indicators</h1>
+<p class="lead">Version {{ VERSION }}. Every rule below runs on live data, and its definition is public by design:
+an indicator only the Bureau can see is an indicator the Bureau can quietly switch off.</p>
+{% for code, meta in INDICATORS.items %}<div class="card">
+<h3>{{ code }} &mdash; {{ meta.name }} {% if not meta.public %}<span class="tag">internal review only</span>{% else %}<span class="tag ok">shown on the tender page</span>{% endif %}</h3>
+<p>{{ meta.definition }}</p></div>{% endfor %}
+<div class="card"><h3>What a flag is not</h3><p>A flag is a prompt for scrutiny, not a finding of guilt.
+Every flag links the evidence it was computed from so a bidder can rebut it, and a
+<em>freeze</em> &mdash; a 10-day suspension of the procedure pending an independent panel &mdash; can be requested by
+any bidder or any member of the public, not only by officials.</p></div>
+{% endblock %}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Official public procurement transparency portal of the Government of Taraba State, Nigeria. View published tenders, contract awards and procurement records.">
+<title>Taraba State Procurement Transparency</title>
+<link rel="icon" type="image/png" href="/assets/img/logo.png">
+<link rel="shortcut icon" href="/assets/img/logo.png">
+<link rel="apple-touch-icon" href="/assets/img/logo.png">
+<meta property="og:title" content="Taraba State Procurement Transparency">
+<meta property="og:description" content="Official E-Procurement & Contractor Management Portal of the Government of Taraba State.">
+<meta property="og:image" content="/assets/img/logo.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Taraba State Procurement Transparency">
+<meta name="twitter:image" content="/assets/img/logo.png"><link rel="stylesheet" href="/assets/css/app.css?v=1788495295">
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="gov-ribbon" role="note">An official transparency service of the Government of Taraba State</div>
+<header class="public-header" role="banner">
+    <div class="bar">
+        <div class="crest" aria-hidden="true"><img src="/assets/img/logo.png" alt="Taraba State" onerror="this.parentNode.textContent='TS'"></div>
+        <div style="flex:1;">
+            <div style="font-weight:700;font-size:1.05rem;">Taraba State Government</div>
+            <div style="font-size:12.5px;color:#b9d8c6;">Public Procurement Transparency Portal</div>
+        </div>
+                <div class="header-actions">
+                        <a class="btn ghost sm back-site"
+               href="https://bpp.tr.gov.ng"
+               rel="noopener">&larr; BPP Website</a>
+            <a class="btn gold sm" href="/register">Register as a Vendor</a>
+            <a class="btn ghost sm" href="/login">Login</a>
+        </div>
+    </div>
+</header>
+<main id="main-content" class="public-wrap" role="main" tabindex="-1">
+    <div class="container" style="padding:26px 0;">
+    <h1 style="margin-bottom:6px;">Procurement Disclosure</h1>
+    <p class="muted" style="max-width:760px;">
+        Contracts awarded by Taraba State Ministries, Departments and Agencies through the
+        State E-Procurement System. Published in line with open contracting practice —
+        no account required.
+    </p>
+
+    <form method="get" action="/disclosure" style="margin:18px 0;">
+        <label style="font-size:13px;">Year
+            <select name="year" onchange="this.form.submit()">
+                                    <option value="2026" selected>2026</option>
+                                    <option value="2025" >2025</option>
+                                    <option value="2024" >2024</option>
+                                    <option value="2023" >2023</option>
+                                    <option value="2022" >2022</option>
+                                    <option value="2021" >2021</option>
+                                    <option value="2020" >2020</option>
+                            </select>
+        </label>
+        <noscript><button type="submit">Show</button></noscript>
+    </form>
+
+    <div class="grid cols-4" style="margin-bottom:20px;">
+        <div class="card"><div class="card-body"><small class="muted">Tenders advertised</small><h2>2</h2></div></div>
+        <div class="card"><div class="card-body"><small class="muted">Contracts awarded</small><h2>0</h2></div></div>
+        <div class="card"><div class="card-body"><small class="muted">Total awarded value</small><h2 style="font-size:19px;">₦0.00</h2></div></div>
+        <div class="card"><div class="card-body"><small class="muted">Open competitive bidding</small><h2>100.0%</h2></div></div>
+    </div>
+
+    <div class="card">
+        <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;">Contract awards, 2026</h3>
+            <a class="btn light sm" href="/disclosure/ocds?year=2026">Open data (OCDS JSON)</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+                            <div class="empty"><p>No contract awards published for 2026.</p></div>
+                    </div>
+    </div>
+
+    <p class="muted" style="font-size:12.5px;margin-top:18px;max-width:760px;">
+        Data is published from the live procurement system. The machine-readable feed follows the
+        Open Contracting Data Standard (OCDS) and may be reused freely. Questions about a specific
+        procurement should be directed to the Bureau of Public Procurement, Jalingo.
+    </p>
+</div>
+</main>
+<footer class="public-footer" role="contentinfo">
+    <nav aria-label="Legal" style="margin-bottom:8px;">
+        <a href="/privacy" style="color:#cfe6d8;">Privacy Notice</a> ·
+        <a href="/terms" style="color:#cfe6d8;">Terms of Use</a> ·
+        <a href="/accessibility" style="color:#cfe6d8;">Accessibility</a>
+    </nav>
+    Published under the Taraba State Public Procurement Law · &copy; 2026 Government of Taraba State.<br>
+    Figures shown exclude confidential commercial information.
+</footer>
+</body>
+</html>

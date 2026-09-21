@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ PLATFORM_NAME }}{% endblock %}</title>
+<meta name="description" content="Open register of Taraba State public procurement: tenders, awards, contracts and payment certifications. No login, no key, no quota.">
+<link rel="stylesheet" href="/stylesheet">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="masthead">
+  <div class="wrap masthead-in">
+    <span class="seal" aria-hidden="true">TS</span>
+    <div><strong>{{ STATE_NAME }}</strong><div class="sub">Bureau of Public Procurement - {{ PLATFORM_NAME }}</div></div>
+    <nav aria-label="Main">
+      <a href="/tenders/">Tenders</a>
+      <a href="/tenders/awards/">Award register</a>
+      <a href="/tenders/suppliers/">Suppliers</a>
+      <a href="/tenders/open-data/">Open data &amp; API</a>
+      <a href="/tenders/status/">Status</a>
+      <a class="btn" href="/tenders/?open=1">Find work</a>
+    </nav>
+  </div>
+</header>
+<main id="main" class="wrap">
+{% block content %}{% endblock %}
+</main>
+<footer class="wrap foot">
+  <p><strong>Published data, not claims.</strong> Every figure on this site is computed by
+  <code>/api/v1/stats</code> when the page renders. If a number here does not match the register, the register is right.</p>
+  <p>Bureau of Public Procurement, Jalingo, Taraba State - <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a> -
+  <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a> - {{ SUPPORT_HOURS }}</p>
+  <p class="tiny">Data licence CC BY 4.0 - <a href="/redirects">permanent URL map</a> -
+  <a href="/api/v1/policy/access">access policy</a> - <a href="/tenders/indicators/">red-flag definitions</a> - (c) {{ YEAR }} {{ STATE_NAME }} Government</p>
+</footer>
+</body></html>

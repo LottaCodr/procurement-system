@@ -1,0 +1,114 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ t.ocid }} &mdash; {{ t.title }}{% endblock %}
+{% block content %}
+<p class="tiny"><a href="/tenders/">&larr; all tenders</a></p>
+<h1>{{ t.title }}</h1>
+<p class="muted">{{ t.ocid }}{% if t.reference %} &middot; {{ t.reference }}{% endif %} &middot; {{ t.agency.code }} &middot; {{ t.status|status_tag }}</p>
+
+{% if t.status == "FROZEN" %}<div class="warnbox"><strong>Frozen by objection.</strong> This procedure is suspended pending an independent panel decision{% if t.frozen_until %} until {{ t.frozen_until|shortdate }}{% endif %}. Bids and evaluation state are preserved exactly as they were.</div>{% endif %}
+{% if not ocds_ok %}<div class="badbox"><strong>OCDS validation failure.</strong> This record cannot be released as open data until fixed: <code>{{ ocds_error }}</code></div>{% endif %}
+
+<div class="grid c4">
+  <div class="kpi"><b>{{ t.est_value|naira }}</b><span>published estimate (disclosed by law of this platform)</span></div>
+  <div class="kpi"><b>{{ bids|length }}</b><span>bids received</span></div>
+  <div class="kpi"><b>{{ t.method }}</b><span>method &middot; {{ t.approval_body|default:"no board approval needed" }}</span></div>
+  <div class="kpi"><b>{{ t.submission_close_at|deadline }}</b><span>submission deadline</span></div>
+</div>
+
+<div class="card">
+  <h3>What you need to know before you bid</h3>
+  <dl class="kv">
+    <dt>Published</dt><dd>{{ t.published_at|shortdate }} &middot; immutable from {{ t.immutable_from|shortdate }} (after publication, changes are new document versions, never edits)</dd>
+    <dt>Clarifications close</dt><dd>{{ t.qa_close_at|shortdate }} &mdash; every question and answer is published to all bidders at once; there are no private answers. A material clarification within 7 days of closing extends the deadline automatically.</dd>
+    <dt>Bid opening</dt><dd>{{ t.opening_at|shortdate }} at {{ t.opening_venue }} &mdash; you may attend. Your bid&rsquo;s commitment hash is public the moment you submit, so a substitution after the deadline is provable.</dd>
+    <dt>Bid security</dt><dd>{{ t.bid_security_amount|naira }}{% if t.rule %} &middot; {{ t.rule.bid_security_pct }}% cap applied{% endif %}</dd>
+    <dt>Estimate to award</dt><dd>{% if t.total_value and t.est_value %}{% widthratio t.total_value t.est_value 100 %}% of estimate{% else %}not yet awarded{% endif %}</dd>
+    <dt>Local content set-aside</dt><dd>{{ t.reserved_for_local_pct }}% Taraba-domiciled &middot; {{ t.sme_set_aside_pct }}% SME set-aside</dd>
+    {% if t.no_objection_ref %}<dt>No-objection ref</dt><dd>{{ t.no_objection_ref }}</dd>{% endif %}
+    {% if t.budget_line %}<dt>Budget line</dt><dd>{{ t.budget_line.fy }} &middot; {{ t.budget_line.project_code }} &middot; {{ t.budget_line.description }} ({{ t.budget_line.amount|naira }} appropriated)</dd>{% endif %}
+  </dl>
+</div>
+
+{% if t.documents.all %}
+<h2>Documents</h2>
+<table><thead><tr><th>Version</th><th>Document</th><th>SHA-256 (verify your download)</th><th>Published</th></tr></thead><tbody>
+{% for d in t.documents.all %}{% if d.published %}
+<tr><td>v{{ d.version }}</td><td><a href="{{ d.download_path }}">{{ d.title }}</a>{% if d.note %}<div class="tiny">{{ d.note }}</div>{% endif %}</td><td><code>{{ d.sha256|hash_short }}</code></td><td class="muted">{{ d.published_at|shortdate }}</td></tr>
+{% endif %}{% endfor %}</tbody></table>
+{% endif %}
+
+{% if t.questions.all %}
+<h2>Clarifications ({{ t.questions.count }})</h2>
+{% for q in t.questions.all %}
+<div class="card"><p class="tiny">Asked {{ q.asked_at|shortdate }}</p><p>{{ q.question }}</p>
+{% if q.answer %}<p><strong>Answer:</strong> {{ q.answer }}{% if q.extends_deadline %} <span class="tag frozen">extended the deadline</span>{% endif %}</p>{% else %}<p class="muted">Awaiting answer &mdash; published to everyone when given.</p>{% endif %}</div>
+{% endfor %}
+{% endif %}
+
+{% if bids %}
+<h2>Bids</h2>
+{% if not reveal %}<div class="warnbox">Bids are sealed until the public opening. Only submission count and commitment hashes are shown; amounts are hidden from everyone including administrators.</div>{% endif %}
+<table><thead><tr><th>Supplier</th><th>RC</th><th class="num">Amount</th><th>Status</th><th>Submitted</th><th>Commitment</th></tr></thead><tbody>
+{% for b in bids %}<tr>
+  <td>{{ b.supplier.legal_name }}{% if b.late %} <span class="tag flag">late</span>{% endif %}</td>
+  <td class="muted">{{ b.supplier.rc_number }}</td>
+  <td class="num">{% if reveal %}{{ b.amount|naira }}{% else %}<span class="muted">sealed</span>{% endif %}</td>
+  <td>{{ b.status|status_tag }}</td>
+  <td class="muted">{{ b.submitted_at|shortdate }}</td>
+  <td><code>{{ b.commitment_hash|hash_short }}</code></td>
+</tr>{% endfor %}</tbody></table>
+{% if reveal and t.commitment_root %}<p class="tiny">Commitment root published at opening: <code>{{ t.commitment_root|hash_short }}</code> &mdash; recompute it from the hashes above to confirm no bid was added, removed or altered after the deadline.</p>{% endif %}
+{% endif %}
+
+{% if t.committee.all %}
+<h2>Evaluation committee</h2>
+<p class="tiny">Formed at or after the public opening &mdash; the platform will not let a committee exist earlier than that. Each member filed a conflict-of-interest declaration.</p>
+<ul class="tight">{% for c in t.committee.all %}<li>{{ c.user.get_full_name|default:c.user.username }} &mdash; {{ c.role }}, seated {{ c.formed_at|shortdate }}{% if c.declaration_sha256 %} &middot; declaration <code>{{ c.declaration_sha256|hash_short }}</code>{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+
+{% if t.awards.all %}
+<h2>Award</h2>
+{% for a in t.awards.all %}
+<div class="card">
+  <p><strong>{{ a.bid.supplier.legal_name }}</strong> &mdash; {{ a.amount|naira }} &middot; {{ a.status|status_tag }}</p>
+  <dl class="kv">
+    <dt>Why they won</dt><dd>{{ a.reason }}</dd>
+    {% if a.non_lowest_reason %}<dt>Not the lowest bid</dt><dd>{{ a.non_lowest_reason }}</dd>{% endif %}
+    <dt>Approved by</dt><dd>{{ a.approved_by.get_full_name|default:"&mdash;" }} ({{ t.approval_body }}), {{ a.approved_at|shortdate }}</dd>
+    {% if a.published_at %}<dt>Notice</dt><dd>{{ a.notice_ref }} published {{ a.published_at|shortdate }}</dd>{% endif %}
+    {% if a.objection_until %}<dt>Objection window</dt><dd>open until {{ a.objection_until|shortdate }} &mdash; <a href="/objections/new/{{ t.ocid }}/">file an objection</a></dd>{% endif %}
+  </dl>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if t.objections.all %}
+<h2>Objections and review</h2>
+{% for o in t.objections.all %}<div class="card">
+  <p>{{ o.outcome|status_tag }} filed {{ o.filed_at|shortdate }} by {{ o.filed_by_label|default:"anonymous" }}</p>
+  <p>{{ o.ground }}</p>
+  {% if o.decision %}<p><strong>Panel decision:</strong> {{ o.decision }} <span class="tiny">({{ o.decided_at|shortdate }})</span></p>{% endif %}
+  {% if o.panel_members %}<p class="tiny">Panel: {% for m in o.panel_members %}{{ m.name }} ({{ m.nominator }}){% if not forloop.last %}, {% endif %}{% endfor %} &mdash; half nominated by civil society; the Bureau cannot reject those nominees.</p>{% endif %}
+</div>{% endfor %}
+{% endif %}
+
+<h2>Red flags on this process</h2>
+{% if public_flags %}
+<table><thead><tr><th>Indicator</th><th>Severity</th><th>Finding</th></tr></thead><tbody>
+{% for f in public_flags %}<tr><td><strong>{{ f.code }}</strong><div class="tiny">{{ f.name }}</div></td><td>{{ f.severity }}</td><td>{{ f.detail }}</td></tr>{% endfor %}
+</tbody></table>
+<p class="tiny">Definitions and arithmetic at <a href="/tenders/indicators/">/tenders/indicators/</a>. Flags are prompts for scrutiny, not findings of guilt &mdash; that is why the evidence is printed next to them.</p>
+{% else %}<p class="tag ok">No published indicator triggers on this process.</p>{% endif %}
+
+<h2>Full history (append-only ledger)</h2>
+<p class="tiny">This is the record as it happened. Nothing below can be edited or deleted by any user, including administrators; corrections appear as new events.</p>
+<table><thead><tr><th>Seq</th><th>Event</th><th>Actor</th><th>At</th><th>Detail</th></tr></thead><tbody>
+{% for e in events %}<tr><td class="num">{{ e.seq }}</td><td><code>{{ e.event_type }}</code></td><td>{{ e.actor }}</td><td class="muted">{{ e.occurred_at|shortdate }}</td><td class="tiny">{{ e.payload }}</td></tr>{% endfor %}
+</tbody></table>
+
+<h2>Machine-readable</h2>
+<p class="tiny"><a href="/tenders/{{ t.ocid }}/ocds.json">OCDS 1.1 release</a> &middot;
+<a href="/api/v1/tenders/{{ t.ocid }}">JSON detail</a> &middot;
+<a href="/api/v1/tenders/{{ t.ocid }}/events">events</a> &middot;
+<a href="/api/v1/tenders/{{ t.ocid }}/flags">flags</a></p>
+{% endblock %}

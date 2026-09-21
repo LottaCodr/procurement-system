@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Contract {{ c.reference }}{% endblock %}
+{% block content %}
+<p class="tiny"><a href="/tenders/{{ c.award.tender.ocid }}/">{{ c.award.tender.ocid }}</a> &rarr; contract</p>
+<h1>{{ c.award.tender.title }}</h1>
+<p class="muted">{{ c.reference }} &middot; {{ c.award.bid.supplier.legal_name }} &middot; {{ c.status|status_tag }}</p>
+{% if variation_high %}<div class="badbox"><strong>Variation alert.</strong> This contract has grown by {{ c.variation_pct }}% beyond its signed value. Anything above 10% is published with its reasons and triggers automatic Bureau review.</div>{% endif %}
+<div class="grid c4">
+  <div class="kpi"><b>{{ c.value|naira }}</b><span>signed value</span></div>
+  <div class="kpi"><b>{{ c.variation_pct }}%</b><span>post-signature growth</span></div>
+  <div class="kpi"><b>{{ c.duration_days }}</b><span>days to complete (from {{ c.signed_at|shortdate }})</span></div>
+  <div class="kpi"><b>{{ c.advance_pct }}%</b><span>advance paid &middot; {{ c.perf_guarantee_pct }}% guarantee held</span></div>
+</div>
+{% if c.location %}<div class="card"><h3>Where the work is</h3><p>{{ c.location }}</p>{% if c.deliverables %}<p class="tiny"><strong>Deliverables:</strong> {{ c.deliverables }}</p>{% endif %}</div>{% endif %}
+<h2>Implementation record</h2>
+{% if events %}<table><thead><tr><th>Date</th><th>Event</th><th class="num">Amount</th><th>Note</th></tr></thead><tbody>
+{% for e in events %}<tr><td class="muted">{{ e.occurred_at|shortdate }}</td><td>{{ e.kind }}</td><td class="num">{{ e.amount|naira }}</td><td>{{ e.note }}</td></tr>{% endfor %}
+</tbody></table>{% else %}<div class="empty">No milestones recorded yet.</div>{% endif %}
+<h2>Acceptance and payment</h2>
+<p class="tiny">Payment cannot be certified without a named officer&rsquo;s acceptance certificate. That gate is the difference between a portal and a register of intent.</p>
+<table><thead><tr><th>Acceptance</th><th>Certified by</th><th>Value</th><th>Payment certification</th><th>Treasury ref</th></tr></thead><tbody>
+{% for x in acceptances %}<tr><td>{{ x.ref }}</td><td>{{ x.certified_by.get_full_name|default:x.certified_by.username }}</td><td class="num">{{ x.value|naira }}</td>
+<td>{% for p in c.certifications.all %}{% if p.acceptance_id == x.id %}{{ p.reference }} ({{ p.certified_at|shortdate }}){% endif %}{% endfor %}{% if not c.certifications.all %}<span class="muted">none</span>{% endif %}</td>
+<td class="muted">{% for p in c.certifications.all %}{{ p.treasury_ref }}{% endfor %}</td></tr>{% endfor %}
+{% if not acceptances %}<tr><td colspan="5" class="muted">Nothing accepted yet &mdash; nothing is payable.</td></tr>{% endif %}
+</tbody></table>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Open data &amp; API{% endblock %}
+{% block content %}
+<h1>Open data &amp; API</h1>
+<p class="lead">No key. No registration. No quota. <strong>CC BY 4.0.</strong> This is not generosity &mdash; an oversight
+interface that needs permission from the body being oversighted is not an oversight interface.</p>
+<div class="card"><h3>Try it now</h3>
+<pre>curl -s https://procurement.taraba.gov.ng/api/v1/stats
+curl -s "https://procurement.taraba.gov.ng/api/v1/tenders?open=1&amp;min=10000000"
+curl -s  https://procurement.taraba.gov.ng/api/v1/bulk?year=2026 -o taraba-2026.zip
+curl -s  https://procurement.taraba.gov.ng/api/v1/releases | jq -c .ocid</pre>
+<p class="tiny">Current register state: {{ m.awards_published }} awards, {{ m.total_award_value|naira }},
+{{ m.ledger_events }} ledger events. If your figure and ours differ, re-run the query; the API is the source of truth.</p></div>
+<h2>Endpoints</h2>
+<table><thead><tr><th>Path</th><th>What it gives you</th></tr></thead><tbody>
+{% for e in endpoints %}<tr><td><code>{{ e.0 }}</code></td><td class="muted">{{ e.1 }}</td></tr>{% endfor %}
+</tbody></table>
+<h2>Standards and guarantees</h2>
+<ul class="tight">
+<li><strong>OCDS 1.1</strong> with a versioned <code>taraba</code> extension &mdash; LGA, method, approval body, red flags,
+immutable-from timestamp, commitment root. Extensions never fork the core schema.</li>
+<li><strong>Continuous releases.</strong> A new release is emitted when a process changes, not in a nightly dump.</li>
+<li><strong>Every release is schema-validated before it leaves the API.</strong> A transparency claim that cannot be
+executed is decoration; <code>GET /api/v1/schema.json</code> is what we validate against.</li>
+<li><strong>Permanent URLs.</strong> <code>/tenders/{ocid}/</code> never changes. Retired paths 301 to successors, and the whole
+map is published at <a href="/redirects">/redirects</a>. Kano&rsquo;s re-platforming turned every previously published
+award list and OCDS report into a 404; that is treated here as data destruction, with a test written against it.</li>
+<li><strong>Reproducible integrity.</strong> <code>python manage.py verify_ledger</code> recomputes the whole hash chain from
+the public bulk dump. You do not have to believe us.</li>
+</ul>
+{% endblock %}

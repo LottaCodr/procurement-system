@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Supplier register{% endblock %}
+{% block content %}
+<h1>Supplier register</h1>
+<p class="lead">{{ count }} active suppliers, {{ debarred }} currently debarred. Identity is shown as dated,
+attributable verification assertions &mdash; not a tick box.</p>
+<form class="filters" method="get"><label>Search<input name="q" value="{{ q }}" placeholder="name or RC number"></label>
+<button type="submit" style="padding:7px 14px;border:1px solid #0a7d3c;background:#0a7d3c;color:#fff;border-radius:6px">Apply</button></form>
+{% if rows %}<table><thead><tr><th>Supplier</th><th>RC</th><th>Location</th><th>Category</th><th>Verified credentials</th><th>Awards</th></tr></thead><tbody>
+{% for p in rows %}<tr>
+  <td>{{ p.legal_name }}{% if p.is_debarred %} <span class="tag flag">DEBARRED</span>{% endif %}{% if p.pep_flag %}<div class="tiny">politically exposed ownership declared</div>{% endif %}</td>
+  <td class="muted">{{ p.rc_number }}</td>
+  <td class="muted">{{ p.lga|default:p.state }}{% if p.scope == "LOCAL" %} <span class="tag">Taraba</span>{% endif %}</td>
+  <td><span class="tag">{{ p.category }}</span></td>
+  <td>{% for v in p.verifications.all %}<div class="tiny">{{ v.get_kind_display }}: {{ v.status }}{% if v.expires_at %} to {{ v.expires_at|shortdate }}{% endif %}</div>{% empty %}<span class="tag flag">unverified</span>{% endfor %}</td>
+  <td class="num">{{ p.bids.count }} bids</td>
+</tr>{% endfor %}</tbody></table>
+{% else %}<div class="empty">No supplier matches.</div>{% endif %}
+<p class="tiny">Tax identifiers are deliberately masked: this register is a check on the state, not a lookup service for identity theft.</p>
+{% endblock %}

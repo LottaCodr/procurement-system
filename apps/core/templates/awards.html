@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Award register &mdash; {{ PLATFORM_NAME }}{% endblock %}
+{% block content %}
+<h1>Award register</h1>
+<p class="lead">{{ count }} awards published, {{ total|naira }} in value. This page is the answer to the question
+every citizen asks and almost no portal answers: <em>who got the contract, for how much, and why them.</em></p>
+<form class="filters" method="get" action="/tenders/awards/">
+  <label>Year<select name="year"><option value="">All years</option>
+    {% for y in years %}<option value="{{ y }}" {% if y|stringformat:"s" == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
+  <label>Agency<select name="agency"><option value="">All</option>
+    {% for a in agency_list %}<option value="{{ a.code }}" {% if a.code == agency %}selected{% endif %}>{{ a.code }}</option>{% endfor %}</select></label>
+  <button type="submit" style="font:inherit;padding:7px 14px;border:1px solid #0a7d3c;background:#0a7d3c;color:#fff;border-radius:6px">Apply</button>
+</form>
+{% if rows %}
+<table><thead><tr><th>Published</th><th>Process</th><th>Agency</th><th>Won by</th><th class="num">Award</th><th class="num">vs est.</th><th>Method</th><th>Flags</th></tr></thead><tbody>
+{% for a in rows %}<tr>
+  <td class="muted">{{ a.published_at|shortdate }}</td>
+  <td><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a><div class="tiny">{{ a.tender.ocid }}</div></td>
+  <td class="muted">{{ a.tender.agency.code }}</td>
+  <td>{{ a.bid.supplier.legal_name }}<div class="tiny">{{ a.bid.supplier.rc_number }} &middot; {{ a.bid.supplier.lga|default:a.bid.supplier.state }}</div></td>
+  <td class="num">{{ a.amount|naira }}</td>
+  <td class="num">{% if a.tender.est_value %}{% widthratio a.amount a.tender.est_value 100 %}%{% else %}&mdash;{% endif %}</td>
+  <td><span class="tag">{{ a.tender.method }}</span></td>
+  <td>{% for f in a.tender.red_flag_codes %}<span class="tag flag">{{ f }}</span> {% endfor %}</td>
+</tr>{% endfor %}</tbody></table>
+<p class="tiny">Also available as <a href="/api/v1/awards?format=json">JSON</a>, <a href="/api/v1/bulk">a yearly zip</a>, or <a href="/api/v1/releases">a continuous OCDS feed</a>.</p>
+{% else %}
+<div class="empty"><strong>No awards are published for this filter.</strong><br>
+<span class="tiny">This register shows nothing rather than an unbacked headline number. Awards appear here within 48 hours of a notice being signed.</span></div>
+{% endif %}
+{% endblock %}

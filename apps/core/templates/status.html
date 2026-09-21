@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Service status{% endblock %}
+{% block content %}
+<h1>Service status</h1>
+<p class="lead">Published continuity metrics, because the failure that kills these platforms is not a hack &mdash;
+it is a certificate that quietly expired and nobody noticed for a season.</p>
+<div class="grid c4">
+  <div class="kpi"><b>{% if chain_valid %}valid{% else %}BROKEN{% endif %}</b><span>ledger chain &middot; {{ chain_events }} events</span></div>
+  <div class="kpi"><b>{{ hsts|floatformat:0 }}</b><span>HSTS max-age (seconds)</span></div>
+  <div class="kpi"><b>{{ contact_phone }}</b><span>published telephone</span></div>
+  <div class="kpi"><b>{{ generated_at|shortdate }}</b><span>last check</span></div>
+</div>
+{% if not chain_valid %}<div class="badbox"><strong>Chain broken at sequence {{ chain_broken_at }}.</strong> Someone altered history. Escalate per the runbook; do not edit forward.</div>{% endif %}
+{% if placeholder_risk %}<div class="badbox"><strong>Placeholder contact data detected.</strong> The release checklist must fail on this. A portal whose phone number reads &ldquo;XXX XXXX&rdquo; and whose email domain has no mail records is not a service.</div>{% endif %}
+<div class="card"><h3>Append-only enforcement</h3><ul class="tight">{% for l in append_only %}<li>{{ l }}</li>{% endfor %}</ul></div>
+<div class="card"><h3>Content-Security-Policy (enforced)</h3><pre>{% for k,v in csp.items %}{{ k }} {{ v }};
+{% endfor %}</pre></div>
+<div class="card"><h3>Head hash</h3><p class="tiny">Publishable commitment to the entire ledger at this instant. Compare with <code>GET /api/v1/ledger/head</code>.</p>
+<pre>{{ head_hash }}</pre></div>
+{% endblock %}

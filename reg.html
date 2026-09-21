@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taraba E-Procurement Portal</title>
+<link rel="icon" type="image/png" href="/assets/img/logo.png">
+<link rel="shortcut icon" href="/assets/img/logo.png">
+<link rel="apple-touch-icon" href="/assets/img/logo.png">
+<meta property="og:title" content="Taraba E-Procurement Portal">
+<meta property="og:description" content="Official E-Procurement & Contractor Management Portal of the Government of Taraba State.">
+<meta property="og:image" content="/assets/img/logo.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Taraba E-Procurement Portal">
+<meta name="twitter:image" content="/assets/img/logo.png"><link rel="stylesheet" href="/assets/css/app.css?v=1788495295">
+<style>
+/* --- Login loader (logo with spinning ring), min 6s --- */
+#site-loader{
+    position:fixed; inset:0; z-index:9999;
+    background:linear-gradient(135deg,#08381f,#0b6b3a);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transition:opacity .5s ease; 
+}
+#site-loader.hide{ opacity:0; pointer-events:none; }
+.loader-ring{
+    position:relative; width:120px; height:120px;
+    display:flex; align-items:center; justify-content:center;
+}
+.loader-ring::before{
+    content:""; position:absolute; inset:0;
+    border:4px solid rgba(255,255,255,.15);
+    border-top-color:#caa53d; border-radius:50%;
+    animation:spin 1s linear infinite;
+}
+.loader-ring img{
+    width:78px; height:78px; border-radius:50%; object-fit:cover;
+    background:#fff; padding:4px;
+}
+.loader-ring .fallback{
+    width:78px;height:78px;border-radius:50%;background:#caa53d;color:#08381f;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:26px;
+}
+#site-loader .brand-text{ color:#fff; margin-top:22px; font-size:15px; font-weight:600; letter-spacing:.02em; }
+#site-loader .sub{ color:#b9d8c6; font-size:12.5px; margin-top:4px; }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="site-loader">
+    <div class="loader-ring">
+        <img src="/assets/img/logo.png" alt="Taraba State" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\'fallback\'>TS</div>');">
+    </div>
+    <div class="brand-text">Taraba State E-Procurement Portal</div>
+    <div class="sub">Securing your session…</div>
+</div>
+
+<div class="gov-ribbon">Government of Taraba State · Official Procurement Platform</div>
+<div class="auth-back">
+    <a href="https://bpp.tr.gov.ng" rel="noopener">&larr; BPP Website</a>
+    <span aria-hidden="true">·</span>
+    <a href="/">Transparency Portal</a>
+</div>
+<div class="auth-wrap is-wide">
+    <div class="auth-card is-wide">
+        <div class="reg-body">
+<div class="reg-head">
+    <div>
+        <h1>Vendor Registration</h1>
+        <p>Register your company to bid for contracts advertised by Taraba State ministries,
+           departments and agencies. Registration takes about ten minutes and is valid for one year.</p>
+        <p class="reg-note">You will need your CAC certificate, TIN, and your tax, PenCom, ITF and
+           NSITF compliance certificates. Your progress is saved at any point, so you can gather
+           anything missing and return without starting again.</p>
+    </div>
+            <button type="button" class="link-btn" data-open-resume>Resume a saved application</button>
+    </div>
+
+
+<div class="resume-box" id="resumeBox" hidden>
+    <form method="get" action="/register">
+        <label>Paste the link or code from your saved-application email</label>
+        <div class="row">
+            <input name="resume" placeholder="e.g. 9f2c…" required>
+            <button class="btn primary" type="submit">Continue</button>
+        </div>
+    </form>
+</div>
+
+<div class="wizard-progress" aria-hidden="true">
+    <div class="bar"><span id="progressBar"></span></div>
+    <span class="pct" id="progressText">Step 1 of 4</span>
+</div>
+
+<ol class="stepper" id="stepper">
+            <li data-step="1" class="is-active">
+            <span class="num">1</span>
+            <span class="lbl">Company Information</span>
+        </li>
+            <li data-step="2" class="">
+            <span class="num">2</span>
+            <span class="lbl">Compliance Documents</span>
+        </li>
+            <li data-step="3" class="">
+            <span class="num">3</span>
+            <span class="lbl">Login Credentials</span>
+        </li>
+            <li data-step="4" class="">
+            <span class="num">4</span>
+            <span class="lbl">Review &amp; Submit</span>
+        </li>
+    </ol>
+
+<form method="post" action="/register" id="regForm" novalidate>
+    <input type="hidden" name="_csrf" value="96f3f6a03589249629365fe594c0e8eb50521ff33ddff8f01fe0005030073f2a">    <input type="hidden" name="draft_token" value="">
+    <input type="hidden" name="step" id="stepField" value="1">
+
+    <!-- ── 1. COMPANY ─────────────────────────────────────────── -->
+    <section class="step-panel" data-panel="1">
+        <div class="card">
+            <div class="card-body">
+                <p class="step-lead">Enter your company's registered particulars exactly as they
+                   appear on your CAC certificate. Fields marked <span class="req">*</span> are required.</p>
+                <div class="field">
+                    <label>Company Name <span class="req">*</span></label>
+                    <input name="company_name" value="" required>
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>CAC Registration Number <span class="req">*</span></label>
+                        <input name="rc_number" value="" placeholder="RC1234567" required>
+                        <div class="hint">As shown on your certificate of incorporation.</div>
+                    </div>
+                    <div class="field">
+                        <label>TIN <span class="req">*</span></label>
+                        <input name="tin" value="" placeholder="12345678-0001" required>
+                        <div class="hint">Taxpayer Identification Number.</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>Year incorporated</label>
+                        <input type="number" name="year_incorporated" min="1900" max="2026"
+                               value="">
+                    </div>
+                    <div class="field">
+                        <label>Website</label>
+                        <input name="website" value="" placeholder="https://">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Contact Person <span class="req">*</span></label>
+                    <input name="full_name" value="" required>
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>Email <span class="req">*</span></label>
+                        <input type="email" name="email" value="" required>
+                        <div class="hint">Every notice about your registration goes here.</div>
+                    </div>
+                    <div class="field">
+                        <label>Phone Number</label>
+                        <input name="phone" value="" inputmode="numeric">
+                        <div class="hint">11 digits, e.g. 08012345678</div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Registered Address</label>
+                    <textarea name="address" rows="2"></textarea>
+                </div>
+                <div class="form-row cols-3">
+                    <div class="field">
+                        <label>State</label>
+                        <input name="state" value="" placeholder="e.g. Taraba">
+                    </div>
+                    <div class="field">
+                        <label>LGA</label>
+                        <input name="lga" value="">
+                    </div>
+                    <div class="field">
+                        <label>Supplier classification</label>
+                        <select name="supplier_scope">
+                            <option value="local"    >Local supplier (Taraba)</option>
+                            <option value="national" >National supplier</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Registering as <span class="req">*</span></label>
+                    <select name="category_id" required>
+                        <option value="">— Select —</option>
+                                                    <option value="1" >
+                                Category A — Works (Major)                            </option>
+                                                    <option value="2" >
+                                Category B — Goods                            </option>
+                                                    <option value="3" >
+                                Category C — Services / Consultancy                            </option>
+                                            </select>
+                    <div class="hint">This sets your registration fee and what you may bid for.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 2. DOCUMENTS ───────────────────────────────────────── -->
+    <section class="step-panel" data-panel="2" hidden>
+        <div class="card">
+            <div class="card-body">
+                <p class="step-lead">Upload a clear scan or photograph of each certificate.
+                   PDF, JPG or PNG, up to 5&nbsp;MB each. The Bureau verifies these before your
+                   registration is approved.</p>
+                                    <div class="alert info">
+                        Save your application first — documents attach to a saved application so you can
+                        upload them over several sittings.
+                        <div style="margin-top:.6rem;"><button type="button" class="btn light" data-save>Save and continue</button></div>
+                    </div>
+                
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                Certificate of Incorporation (CAC)                                <span class="req">*</span>                            </strong>
+                            <span>CAC certificate showing your RC number.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                Tax Clearance Certificate                                <span class="req">*</span>                            </strong>
+                            <span>Most recent three years, issued by the relevant tax authority.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                PenCom Compliance Certificate                                <span class="req">*</span>                            </strong>
+                            <span>Pension Commission compliance certificate.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                ITF Compliance Certificate                                <span class="req">*</span>                            </strong>
+                            <span>Industrial Training Fund compliance certificate.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                NSITF Compliance Certificate                                <span class="req">*</span>                            </strong>
+                            <span>Nigeria Social Insurance Trust Fund certificate.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                Audited Accounts                                                            </strong>
+                            <span>Most recent audited financial statements. Optional at registration.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                                                        <div class="doc-row ">
+                        <div class="doc-info">
+                            <strong>
+                                Sworn Affidavit                                                            </strong>
+                            <span>Affidavit of non-conviction and truthfulness of documents. Optional at registration.</span>
+                                                    </div>
+                        <div class="doc-action">
+                                                            <span class="muted">Save first</span>
+                                                    </div>
+                    </div>
+                            </div>
+        </div>
+    </section>
+
+    <!-- ── 3. CREDENTIALS ─────────────────────────────────────── -->
+    <section class="step-panel" data-panel="3" hidden>
+        <div class="card">
+            <div class="card-body">
+                <p class="step-lead">Choose the password you will use to sign in. Keep it private &mdash;
+                   bids submitted from your account are treated as submitted by your company.</p>
+                <div class="field">
+                    <label>Password <span class="req">*</span></label>
+                    <input type="password" name="password" id="pw" required autocomplete="new-password">
+                    <div class="hint">At least 10 characters. Not stored in a saved application — you set it when you submit.</div>
+                </div>
+                <div class="field">
+                    <label>Confirm password <span class="req">*</span></label>
+                    <input type="password" name="password_confirm" id="pw2" required autocomplete="new-password">
+                    <div class="hint" id="pwMsg"></div>
+                </div>
+                <label class="check">
+                    <input type="checkbox" name="accept_terms" value="1" required>
+                    I confirm the information and documents provided are true, and I accept the
+                    Bureau's terms for vendors.
+                </label>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── 4. REVIEW ──────────────────────────────────────────── -->
+    <section class="step-panel" data-panel="4" hidden>
+        <div class="card">
+            <div class="card-body">
+                <p class="step-lead">Check the details below before submitting. You can go back to
+                   any step to correct them.</p>
+                <h3 style="margin-top:0;">Summary</h3>
+                <dl class="kv" id="reviewList"></dl>
+                <div class="alert info" style="margin-top:1rem;">
+                    On submitting you will receive your registration invoice. Your application is
+                    reviewed once the fee is confirmed and your documents have been checked.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="wizard-nav">
+        <button type="button" class="btn light" data-prev hidden>← Back</button>
+        <button type="button" class="btn light" data-save>Save &amp; finish later</button>
+        <button type="button" class="btn primary" data-next>Continue →</button>
+        <button type="submit" class="btn primary" data-submit hidden>Submit registration</button>
+    </div>
+</form>
+
+<form method="post" action="/register/save" id="saveForm" hidden>
+    <input type="hidden" name="_csrf" value="96f3f6a03589249629365fe594c0e8eb50521ff33ddff8f01fe0005030073f2a">    <input type="hidden" name="draft_token" value="">
+    <div id="saveMirror"></div>
+</form>
+
+<form method="post" action="/register/document" id="docForm" enctype="multipart/form-data" hidden>
+    <input type="hidden" name="_csrf" value="96f3f6a03589249629365fe594c0e8eb50521ff33ddff8f01fe0005030073f2a">    <input type="hidden" name="draft_token" value="">
+    <input type="hidden" name="doc_type" id="docType">
+    <input type="file" name="document" id="docFile" accept=".pdf,.jpg,.jpeg,.png">
+    <input type="date" name="issued_date" id="docIssued">
+    <input type="date" name="expiry_date" id="docExpiry">
+</form>
+
+<form method="post" action="/register/document/remove" id="removeForm" hidden>
+    <input type="hidden" name="_csrf" value="96f3f6a03589249629365fe594c0e8eb50521ff33ddff8f01fe0005030073f2a">    <input type="hidden" name="draft_token" value="">
+    <input type="hidden" name="doc_type" id="removeType">
+</form>
+
+<p class="auth-alt">Already registered? <a href="/login">Sign in</a></p>
+
+<script>
+(function () {
+  var form = document.getElementById('regForm');
+  if (!form) { return; }
+  var TOTAL = 4;
+  var step  = parseInt(document.getElementById('stepField').value, 10) || 1;
+
+  var panels = [].slice.call(document.querySelectorAll('.step-panel'));
+  var items  = [].slice.call(document.querySelectorAll('#stepper li'));
+  var bPrev  = document.querySelector('[data-prev]');
+  var bNext  = document.querySelector('[data-next]');
+  var bSubmit= document.querySelector('[data-submit]');
+
+  function render() {
+    panels.forEach(function (p) { p.hidden = parseInt(p.dataset.panel,10) !== step; });
+    items.forEach(function (li) {
+      var n = parseInt(li.dataset.step,10);
+      li.classList.toggle('is-active', n === step);
+      li.classList.toggle('is-done',   n <  step);
+    });
+    bPrev.hidden   = step === 1;
+    bNext.hidden   = step === TOTAL;
+    bSubmit.hidden = step !== TOTAL;
+    document.getElementById('stepField').value = step;
+
+    var bar = document.getElementById('progressBar');
+    var txt = document.getElementById('progressText');
+    if (bar) { bar.style.width = Math.round((step / TOTAL) * 100) + '%'; }
+    if (txt) { txt.textContent = 'Step ' + step + ' of ' + TOTAL; }
+
+    /* Keep the current step visible on a narrow screen, where the stepper
+       scrolls horizontally and the active item can sit off-screen. */
+    var active = document.querySelector('#stepper li.is-active');
+    if (active && active.scrollIntoView) {
+      active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    }
+
+    if (step === TOTAL) { buildReview(); }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* Validate only the panel being left, so a vendor is never blocked by a
+     field on a step they have not reached. */
+  function panelValid(n) {
+    var panel = panels[n-1];
+    var bad = null;
+    [].slice.call(panel.querySelectorAll('[required]')).forEach(function (el) {
+      if (el.type === 'checkbox' ? !el.checked : !String(el.value||'').trim()) {
+        el.classList.add('has-error');
+        if (!bad) { bad = el; }
+      } else { el.classList.remove('has-error'); }
+    });
+    if (n === 3) {
+      var a = document.getElementById('pw'), b = document.getElementById('pw2');
+      var m = document.getElementById('pwMsg');
+      if (a.value && a.value.length < 10) { m.textContent = 'Password must be at least 10 characters.'; if(!bad) bad=a; }
+      else if (a.value !== b.value)       { m.textContent = 'The two passwords do not match.'; if(!bad) bad=b; }
+      else { m.textContent = ''; }
+    }
+    if (bad) { bad.focus(); }
+    return !bad;
+  }
+
+  function buildReview() {
+    var dl = document.getElementById('reviewList');
+    dl.innerHTML = '';
+    [['Company','company_name'],['CAC number','rc_number'],['TIN','tin'],
+     ['Contact','full_name'],['Email','email'],['Phone','phone'],
+     ['State','state'],['Registering as','category_id']].forEach(function (p) {
+      var el = form.querySelector('[name="'+p[1]+'"]');
+      if (!el) { return; }
+      var v = el.tagName === 'SELECT' && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : el.value;
+      if (!String(v||'').trim()) { return; }
+      var dt = document.createElement('dt'); dt.textContent = p[0];
+      var dd = document.createElement('dd'); dd.textContent = v;
+      dl.appendChild(dt); dl.appendChild(dd);
+    });
+  }
+
+  bNext.addEventListener('click', function () {
+    if (!panelValid(step)) { return; }
+    if (step < TOTAL) { step++; render(); }
+  });
+  bPrev.addEventListener('click', function () { if (step > 1) { step--; render(); } });
+  items.forEach(function (li) {
+    li.addEventListener('click', function () {
+      var n = parseInt(li.dataset.step,10);
+      if (n < step) { step = n; render(); }        // back only; forward must validate
+    });
+  });
+
+  /* Save: copy the current values into the save form and post it. */
+  [].slice.call(document.querySelectorAll('[data-save]')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      var mirror = document.getElementById('saveMirror');
+      mirror.innerHTML = '';
+      [].slice.call(form.elements).forEach(function (el) {
+        if (!el.name || el.type === 'password' || el.name === '_csrf' || el.name === 'draft_token') { return; }
+        var i = document.createElement('input');
+        i.type = 'hidden'; i.name = el.name;
+        i.value = (el.type === 'checkbox') ? (el.checked ? el.value : '') : el.value;
+        mirror.appendChild(i);
+      });
+      var s = document.createElement('input');
+      s.type='hidden'; s.name='step'; s.value=String(step); mirror.appendChild(s);
+      document.getElementById('saveForm').submit();
+    });
+  });
+
+  /* Document upload: pick the file, then post immediately. */
+  var docForm = document.getElementById('docForm');
+  var docFile = document.getElementById('docFile');
+  [].slice.call(document.querySelectorAll('[data-upload-doc],[data-remove-doc]')).forEach(function (b) {
+    b.addEventListener('click', function () {
+      var type = b.dataset.uploadDoc || b.dataset.removeDoc;
+      document.getElementById('docType').value = type;
+      docFile.click();
+    });
+  });
+  docFile.addEventListener('change', function () {
+    if (docFile.files && docFile.files.length) { docForm.submit(); }
+  });
+
+  var rb = document.querySelector('[data-open-resume]');
+  if (rb) { rb.addEventListener('click', function () {
+    var box = document.getElementById('resumeBox');
+    box.hidden = !box.hidden;
+    if (!box.hidden) { box.querySelector('input').focus(); }
+  }); }
+
+  render();
+})();
+</script>
+</div><!-- /.reg-body -->
+    </div>
+</div>
+
+<script>
+(function(){
+    // Show the loader for a minimum of 6 seconds on the login/auth screen.
+    var MIN_MS = 6000;
+    var start = Date.now();
+    function hideLoader(){
+        var el = document.getElementById('site-loader');
+        if(!el) return;
+        el.classList.add('hide');
+        setTimeout(function(){ if(el && el.parentNode) el.parentNode.removeChild(el); }, 600);
+    }
+    window.addEventListener('load', function(){
+        var elapsed = Date.now() - start;
+        var wait = Math.max(0, MIN_MS - elapsed);
+        setTimeout(hideLoader, wait);
+    });
+    // Safety: never let the loader hang forever.
+    setTimeout(hideLoader, MIN_MS + 8000);
+})();
+</script>
+</body>
+</html>

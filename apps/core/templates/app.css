@@ -1,0 +1,50 @@
+/* Served locally. No CDN, no webfonts, no runtime Tailwind — Kano shipped
+   @tailwindcss/browser@4 from a public CDN, which is both an availability and a
+   supply-chain bug. Whole sheet is <3KB so a tender list fits the 60KB budget. */
+:root{--g:#0a7d3c;--ink:#14231b;--mut:#5d6f63;--line:#dfe6e0;--bad:#b42318;--warn:#a15c07;
+--bg:#f6f8f6;--card:#fff;max-width:none}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+a{color:var(--g)}
+.skip{position:absolute;left:-9999px}.skip:focus{left:8px;top:8px;background:#fff;padding:8px;z-index:9}
+.masthead{background:var(--g);color:#fff}.masthead-in{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 16px}
+.masthead a{color:#fff;text-decoration:none;padding:6px 8px;border-radius:6px}
+.masthead a:hover,.masthead a:focus{background:rgba(255,255,255,.18)}
+.masthead .sub{font-size:12.5px;opacity:.92}
+.masthead nav{margin-left:auto;display:flex;gap:2px;flex-wrap:wrap;align-items:center}
+.btn{background:#fff;color:var(--g)!important;font-weight:600;padding:7px 12px!important;border-radius:6px}
+.seal{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#fff;color:var(--g);font-weight:800;font-size:13px}
+h1{font-size:26px;margin:22px 0 6px}h2{font-size:19px;margin:26px 0 8px}h3{font-size:16px;margin:18px 0 6px}
+.lead{color:var(--mut);margin:0 0 18px;max-width:70ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:14px 0}
+.grid{display:grid;gap:12px}.grid.c4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em}
+.kpi span{color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;background:var(--card)}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#eef3ef;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:#fafcfa}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--mut)}
+.tag.open{border-color:#bfe3c9;background:#eaf7ee;color:#0a5f2c}
+.tag.closed{background:#f2f2f2}
+.tag.flag{border-color:#f0c8c0;background:#fdf1ef;color:var(--bad);font-weight:600}
+.tag.frozen{border-color:#f3d9a8;background:#fdf6e7;color:var(--warn);font-weight:600}
+.tag.ok{border-color:#bfe3c9;background:#eaf7ee;color:#0a5f2c;font-weight:600}
+.muted{color:var(--mut)}.tiny{font-size:12.5px;color:var(--mut)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+pre{background:#0f1a13;color:#d7e8dc;padding:12px;border-radius:8px;overflow:auto}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:14px 0}
+.filters label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:4px}
+input,select{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;max-width:220px}
+.foot{color:var(--mut);font-size:13px;padding:26px 16px 40px;border-top:1px solid var(--line);margin-top:34px}
+.empty{padding:26px;text-align:center;color:var(--mut);background:#fff;border:1px dashed var(--line);border-radius:10px}
+.warnbox{border-left:4px solid var(--warn);background:#fdf6e7;padding:10px 12px;border-radius:0 8px 8px 0;margin:12px 0}
+.badbox{border-left:4px solid var(--bad);background:#fdf1ef;padding:10px 12px;border-radius:0 8px 8px 0;margin:12px 0}
+.goodbox{border-left:4px solid var(--g);background:#eaf7ee;padding:10px 12px;border-radius:0 8px 8px 0;margin:12px 0}
+ul.tight{margin:6px 0;padding-left:20px}dl.kv{display:grid;grid-template-columns:180px 1fr;gap:6px 12px;margin:0}
+dl.kv dt{color:var(--mut);font-size:13px}dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}h1{font-size:22px}table{font-size:13.5px}}
+@media print{.masthead nav,.filters,.foot a{display:none}body{background:#fff}.card{border:1px solid #999}}
