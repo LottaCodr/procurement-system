@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Not permitted{% endblock %}
+{% block content %}
+<div class="wrap--narrow">
+  <header class="page-head page-head--ruled">
+    <h1>You do not have access to that part of the workspace</h1>
+    <p class="lede">This is a permissions wall, not a missing page. Everything the platform publishes about
+    tenders, awards, contracts and payments is readable without an account.</p>
+  </header>
+  <div class="card">
+    <h3>Where you can go</h3>
+    <ul>
+      <li><a href="/tenders/">The public tender register</a></li>
+      <li><a href="/tenders/awards/">The award register</a></li>
+      <li><a href="/tenders/open-data/">Open data and the API</a></li>
+      <li><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Sign in</a> if you are a Bureau or MDA officer</li>
+    </ul>
+    <p class="tiny">If you expected access, the Bureau's help desk can check your role:
+      {{ CONTACT_PHONE }}.</p>
+  </div>
+</div>
+{% endblock %}

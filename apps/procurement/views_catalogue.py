@@ -1,172 +1,153 @@
-"""Catalogue fast-lane views for common-use goods.
+"""Catalogue (common-use goods) — public read views.
 
-Design requirement: "Catalogue fast-lane for repeatable goods (medicines, furniture,
-ICT, vehicles) with ≥3-quote auto-comparison and L1"
+The transparency question a catalogue answers is *"what does the state pay for a
+box of gloves, and who does it buy them from?"*. So this module publishes the
+price list and the comparison that decides the winner, and nothing else: raising
+a purchase order is an MDA action performed inside the authenticated workspace,
+not from a public page. (An earlier revision exposed `create_purchase_order` on
+the public URL conf, which would have let any anonymous visitor mint a purchase
+order — a hole no amount of styling can compensate for.)
 """
-from django.shortcuts import render, get_object_or_404
-from django.db.models import Min, Count, Q
-from procurement.models_additional import CatalogueItem, CatalogueQuote, PurchaseOrder
-from procurement.models_party import Party as Supplier
+from __future__ import annotations
+
+from django.db.models import Count, Min
+from django.db.models.functions import Lower
+from django.shortcuts import get_object_or_404, render
+
+from workflow.models import CatalogueItem, CatalogueQuote, PurchaseOrder
+
+#: The platform will not raise a purchase order without this many competing
+#: quotes. Published because the rule that constrains spending must be visible.
+MIN_QUOTES_FOR_ORDER = 3
+
+
+def _items():
+    return CatalogueItem.objects.filter(is_active=True).select_related("supplier")
 
 
 def catalogue_list(request):
-    """List all catalogue items grouped by category."""
-    category = request.GET.get('category')
-    
-    items = CatalogueItem.objects.filter(is_active=True)
-    
+    category = (request.GET.get("category") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+
+    items = _items()
     if category:
-        items = items.filter(category=category)
-    
-    # Group by category
-    categories = {}
-    for item in items:
-        if item.category not in categories:
-            categories[item.category] = []
-        categories[item.category].append(item)
-    
-    # Get all unique categories
-    all_categories = CatalogueItem.objects.filter(
-        is_active=True
-    ).values_list('category', flat=True).distinct().order_by('category')
-    
-    context = {
-        'categories': categories,
-        'all_categories': all_categories,
-        'selected_category': category,
-        'page_title': 'Catalogue - Common-Use Goods',
-    }
-    
-    return render(request, 'catalogue_list.html', context)
+        items = items.filter(category__iexact=category)
+    if q:
+        items = items.filter(name__icontains=q)
 
+    items = items.order_by("category", "unit_price")
 
-def catalogue_detail(request, item_id):
-    """View details and quotes for a catalogue item."""
-    item = get_object_or_404(CatalogueItem, id=item_id, is_active=True)
-    
-    # Get all quotes for this item
-    quotes = CatalogueQuote.objects.filter(
-        item=item,
-        is_active=True
-    ).select_related('supplier').order_by('unit_price')
-    
-    # Identify L1 (lowest price)
-    l1_quote = quotes.first()
-    
-    context = {
-        'item': item,
-        'quotes': quotes,
-        'l1_quote': l1_quote,
-        'quote_count': quotes.count(),
-        'page_title': f'{item.name} - Catalogue',
-    }
-    
-    return render(request, 'catalogue_detail.html', context)
-
-
-def create_purchase_order(request, item_id):
-    """Create a purchase order for a catalogue item.
-    
-    Automatically selects L1 supplier if ≥3 quotes exist.
-    """
-    item = get_object_or_404(CatalogueItem, id=item_id, is_active=True)
-    
-    if request.method == 'POST':
-        quantity = int(request.POST.get('quantity', 1))
-        delivery_location = request.POST.get('delivery_location', '')
-        
-        # Get quotes
-        quotes = CatalogueQuote.objects.filter(
-            item=item,
-            is_active=True
-        ).select_related('supplier').order_by('unit_price')
-        
-        if quotes.count() < 3:
-            return render(request, 'catalogue_insufficient_quotes.html', {
-                'item': item,
-                'quote_count': quotes.count(),
-                'required': 3,
-            })
-        
-        # Select L1 supplier
-        l1_quote = quotes.first()
-        
-        # Create purchase order
-        po = PurchaseOrder.objects.create(
-            catalogue_item=item,
-            supplier=l1_quote.supplier,
-            quantity=quantity,
-            unit_price=l1_quote.unit_price,
-            total_amount=l1_quote.unit_price * quantity,
-            delivery_location=delivery_location,
-            status='AWARDED',
-            awarded_at=timezone.now(),
+    # Cheapest quote per SKU, plus how many suppliers compete for it: this is
+    # the "≥3 quotes → L1" rule made legible on one screen.
+    comparison = (
+        items.values("sku", "name", "unit", "category")
+        .annotate(
+            best_price=Min("unit_price"),
+            supplier_count=Count("supplier", distinct=True),
+            best_lead=Min("lead_time_days"),
         )
-        
-        # Link to quote
-        po.selected_quote = l1_quote
-        po.save()
-        
-        return render(request, 'purchase_order_created.html', {
-            'po': po,
-            'item': item,
-            'supplier': l1_quote.supplier,
-        })
-    
-    # GET request - show form
-    quotes = CatalogueQuote.objects.filter(
-        item=item,
-        is_active=True
-    ).select_related('supplier').order_by('unit_price')
-    
-    context = {
-        'item': item,
-        'quotes': quotes,
-        'can_create': quotes.count() >= 3,
-        'page_title': f'Create Purchase Order - {item.name}',
-    }
-    
-    return render(request, 'create_purchase_order.html', context)
+        .order_by("category", "name")
+    )
+
+    # Cheapest supplier per SKU, resolved in ONE pass over an ordered queryset
+    # rather than a query per row. Prices are shown per unit with the supplier
+    # attached, because "the state pays ₦450 for a box of gloves" is only useful
+    # if you can also see who it pays and what the alternative costs.
+    cheapest: dict[str, CatalogueItem] = {}
+    for item in items.order_by("category", "sku", "unit_price"):
+        cheapest.setdefault(item.sku, item)
+
+    rows = []
+    for row in comparison:
+        best = cheapest.get(row["sku"])
+        row["supplier"] = best.supplier if best else None
+        row["item"] = best
+        row["competitive"] = row["supplier_count"] >= MIN_QUOTES_FOR_ORDER
+        rows.append(row)
+
+    categories = (
+        _items().values_list("category", flat=True).distinct().order_by(Lower("category"))
+    )
+
+    return render(
+        request,
+        "catalogue_list.html",
+        {
+            "rows": rows,
+            "categories": categories,
+            "selected_category": category,
+            "q": q,
+            "min_quotes": MIN_QUOTES_FOR_ORDER,
+            "item_count": len(rows),
+            "po_count": PurchaseOrder.objects.count(),
+        },
+    )
+
+
+def catalogue_detail(request, catalogue_id: int):
+    """One SKU across every supplier that quotes it, cheapest first."""
+    item = get_object_or_404(_items().select_related("supplier"), pk=catalogue_id)
+
+    quotes = (
+        CatalogueItem.objects.filter(sku=item.sku, is_active=True)
+        .select_related("supplier")
+        .order_by("unit_price", "lead_time_days")
+    )
+    cheapest = quotes.first()
+
+    # Purchase orders raised against this SKU, so the published price can be
+    # reconciled with what was actually paid.
+    orders = (
+        PurchaseOrder.objects.filter(title__icontains=item.name)
+        .select_related("agency", "awarded_supplier")
+        .order_by("-created_at")[:10]
+    )
+
+    return render(
+        request,
+        "catalogue_detail.html",
+        {
+            "item": item,
+            "quotes": quotes,
+            "cheapest": cheapest,
+            "quote_count": quotes.count(),
+            "min_quotes": MIN_QUOTES_FOR_ORDER,
+            "orders": orders,
+        },
+    )
 
 
 def purchase_order_list(request):
-    """List all purchase orders."""
-    status = request.GET.get('status')
-    
-    pos = PurchaseOrder.objects.select_related(
-        'catalogue_item', 'supplier'
-    ).order_by('-created_at')
-    
+    """Every purchase order raised through the fast lane, newest first."""
+    status = (request.GET.get("status") or "").strip().upper()
+    orders = PurchaseOrder.objects.select_related(
+        "agency", "awarded_supplier", "created_by"
+    ).order_by("-created_at")
     if status:
-        pos = pos.filter(status=status)
-    
-    # Calculate totals
-    total_amount = pos.aggregate(total=models.Sum('total_amount'))['total'] or 0
-    total_orders = pos.count()
-    
-    context = {
-        'purchase_orders': pos,
-        'total_amount': total_amount,
-        'total_orders': total_orders,
-        'selected_status': status,
-        'page_title': 'Purchase Orders',
-    }
-    
-    return render(request, 'purchase_order_list.html', context)
+        orders = orders.filter(status=status)
+
+    return render(
+        request,
+        "purchase_order_list.html",
+        {
+            "orders": orders[:200],
+            "total_orders": orders.count(),
+            "status": status,
+            "statuses": PurchaseOrder._meta.get_field("status").choices,
+        },
+    )
 
 
-def purchase_order_detail(request, po_id):
-    """View purchase order details."""
+def purchase_order_detail(request, po_id: int):
     po = get_object_or_404(
         PurchaseOrder.objects.select_related(
-            'catalogue_item', 'supplier', 'selected_quote'
+            "agency", "awarded_supplier", "budget_line", "created_by"
         ),
-        id=po_id
+        pk=po_id,
     )
-    
-    context = {
-        'po': po,
-        'page_title': f'Purchase Order {po.po_number}',
-    }
-    
-    return render(request, 'purchase_order_detail.html', context)
+    quotes = CatalogueQuote.objects.filter(po=po).select_related("supplier").order_by("unit_price")
+    return render(
+        request,
+        "purchase_order_detail.html",
+        {"po": po, "quotes": quotes, "min_quotes": MIN_QUOTES_FOR_ORDER},
+    )

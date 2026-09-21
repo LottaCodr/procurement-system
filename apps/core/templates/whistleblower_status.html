@@ -1,0 +1,66 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Case {{ reference }} — whistleblower status{% endblock %}
+{% block description %}Status of a whistleblower report by reference number. No identifying information is shown, and none is required to check.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/whistleblower/">Report corruption</a></li>
+  <li><span aria-current="page">Case check</span></li>
+</ol></nav>
+
+<div class="wrap--narrow">
+<header class="page-head page-head--ruled">
+  <h1>Case reference {{ reference }}</h1>
+  <p class="lede">Checked at {{ checked_at|datetime_wat }}. This page shows the status of a report and
+  nothing else: not the report's contents, not any contact details, not who is handling it.</p>
+</header>
+
+{% if report %}
+  <div class="card">
+    <dl class="kv">
+      <dt>Reference</dt><dd><code>{{ report.ref }}</code></dd>
+      <dt>Status</dt><dd>{{ report.status|status_tag }}</dd>
+      <dt>Received</dt><dd>{{ report.submitted_at|datetime_wat }}
+        <span class="tiny">({{ report.submitted_at|relative }})</span></dd>
+    </dl>
+    <p class="tiny">If the status has not moved, that is what the register says. A status is not a promise
+    of an outcome: the record shows what has actually been done, including the times when nothing has.</p>
+  </div>
+
+  <div class="callout callout--info">
+    <span class="callout__title">What the statuses mean</span>
+    <ul>
+      <li><strong>Received</strong> — the report is stored, encrypted, and waiting to be read.</li>
+      <li><strong>Triaged</strong> — an investigator has read it and decided whether it can be acted on.</li>
+      <li><strong>Investigating</strong> — work is under way, which may include freezing a live
+        procurement for ten days.</li>
+      <li><strong>Resolved</strong> — action was taken or the matter was referred elsewhere; any
+        outcome summary the Bureau publishes appears against the reference.</li>
+      <li><strong>Dismissed</strong> — no further action. The register records that it is dismissed;
+        it does not tell you why, and that limit is stated rather than hidden.</li>
+    </ul>
+  </div>
+{% else %}
+  <div class="callout callout--warn" role="alert">
+    <span class="callout__title">No case has that reference</span>
+    <p>References look like <code>WB-XXXXXXXXXX</code>. Check for a mistyped character: references are
+    case-insensitive, but a wrong digit will not find a case. If you are sure the reference is right and it
+    is still not found, the report may have failed to submit — in which case nothing was stored, and you
+    will need to send it again.</p>
+  </div>
+  <p><a class="btn btn--secondary" href="/tenders/whistleblower/">Send a report</a></p>
+{% endif %}
+
+<div class="card">
+  <h2>Check another reference</h2>
+  <form method="get" action="/tenders/whistleblower/status/" role="search">
+    <div class="field">
+      <label class="field__label" for="ref-input">Case reference</label>
+      <input id="ref-input" name="ref" type="text" placeholder="WB-A1B2C3D4E5" autocapitalize="characters" spellcheck="false">
+    </div>
+    <p><button class="btn" type="submit">Check the status</button></p>
+  </form>
+</div>
+</div>
+{% endblock %}

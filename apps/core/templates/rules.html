@@ -1,0 +1,108 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Procurement rules and thresholds{% if fy %} — {{ fy }}{% endif %}{% endblock %}
+{% block description %}The threshold table that decides which procurement method applies to a value in {{ STATE_NAME }}, how long it must be advertised, who must approve it and what bid security may be demanded.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Rules and thresholds</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Which method applies to my value?</h1>
+  <p class="lede">Find the band your contract value falls in, and you can see the method the law requires,
+  the minimum advertising period, who has to approve it and the maximum bid security that may be
+  demanded. These rules are read from the register, not typed into this page.</p>
+</header>
+
+{% if years %}
+  <form class="filters" method="get" action="/tenders/rules/">
+    <div class="filters__grid">
+      <div class="field">
+        <label class="field__label" for="r-fy">Rule set (fiscal year)</label>
+        <select id="r-fy" name="fy">
+          {% for y in years %}<option value="{{ y }}" {% if y == fy %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+        <span class="field__hint">Thresholds are versioned by year and never edited in place, so a tender
+        can always be checked against the rules that applied when it was advertised.</span>
+      </div>
+    </div>
+    <div class="filters__actions"><button class="btn" type="submit">Show these rules</button></div>
+  </form>
+{% endif %}
+
+{% if grouped %}
+  <div class="callout callout--info">
+    <span class="callout__title">{{ total_rules }} active rule{{ total_rules|pluralize }} in this rule set</span>
+    <p>If a tender you are reading does not match the band its value falls in, that is a finding worth
+    reporting — and the platform enforces these bands when a process is published.</p>
+  </div>
+
+  {% for method, rules in grouped.items %}
+    <section aria-labelledby="m-{{ method }}">
+      <h2 id="m-{{ method }}">{{ method }}</h2>
+      <p>{{ method_help|get_item:method|default:"Method details are published with each rule below." }}</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="{{ method }} threshold bands, scrollable">
+        <table class="data">
+          <caption>Value bands for {{ method }}. Amounts are Naira.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Value band</th>
+              <th scope="col">Approval required</th>
+              <th scope="col" class="num">Minimum advert</th>
+              <th scope="col" class="num">Min. quotations</th>
+              <th scope="col" class="num">Bid security cap</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in rules %}
+            <tr>
+              <th scope="row">
+                {% if r.max_amount %}{{ r.min_amount|naira }} – {{ r.max_amount|naira }}
+                {% else %}Above {{ r.min_amount|naira }}{% endif %}
+              </th>
+              <td>{{ r.approval_body }}</td>
+              <td class="num">{{ r.min_advert_days }} days</td>
+              <td class="num">{{ r.min_quotations }}</td>
+              <td class="num">{{ r.bid_security_pct }}%</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+
+  <section aria-labelledby="how-enforced">
+    <h2 id="how-enforced">How these rules are actually enforced</h2>
+    <div class="grid grid--2">
+      <div class="card">
+        <h3>At publication</h3>
+        <p>A process cannot be published without a disclosed estimate, and the advertisement period is
+        checked against the band before the notice goes live. A short-cut period is refused, not flagged.</p>
+      </div>
+      <div class="card">
+        <h3>At award</h3>
+        <p>Awards must name the approving authority for their band, and awards that sit just under a
+        boundary raise the threshold-shaving indicator automatically.</p>
+      </div>
+      <div class="card">
+        <h3>Bid security</h3>
+        <p>The cap is a maximum, not a target. Anything above it is refused by the platform, because a
+        security a small firm cannot raise is an eligibility filter dressed as a formality.</p>
+      </div>
+      <div class="card">
+        <h3>If a rule was broken</h3>
+        <p>Every process page carries the rule that applied and the figures it was checked against.
+        <a href="/tenders/help/#objection">You can challenge it</a>.</p>
+      </div>
+    </div>
+  </section>
+{% else %}
+  <div class="empty">
+    <h3>No threshold rules are loaded</h3>
+    <p>The Bureau must load the state's threshold matrix for the current fiscal year before any process
+    can be published — the platform will not accept a tender without a matching band.</p>
+    <p><a href="/tenders/help/">Contact the Bureau</a></p>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,55 +1,112 @@
-{% extends "base.html" %}
-{% block title %}Payment certifications{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Payment certifications{% if year %} — {{ year }}{% endif %}{% endblock %}
+{% block description %}Every payment {{ STATE_NAME }} has certified against a contract, with the acceptance certificate that authorised it and the treasury reference that released it.{% endblock %}
+
 {% block content %}
-<div class="card">
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Payments</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
   <h1>Payment certifications</h1>
-  <p>The payment lock: no platform record, no payment. Finance policy is that
-  payment certification requires a published award, an accepted delivery certificate (CRAC),
-  and a valid guarantee. This page makes the lock visible.</p>
-  <div class="metric">
-    <span class="num">₦{{ total_certified|floatformat:0 }}</span>
-    <span class="lbl">Total certified for payment</span>
-  </div>
+  <p class="lede">The point where procurement money actually leaves the treasury. Each row names the
+  contract, the acceptance certificate that authorised the payment and the treasury reference that released
+  it — because "the contract was awarded" and "the money was paid" are different facts, and most portals
+  publish only the first.</p>
+</header>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ certs|length }}</span><span class="kpi__label">certifications{% if year %} in {{ year }}{% endif %}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ total_certified|naira }}</span><span class="kpi__label">certified total</span>
+    <span class="kpi__meta">certified is not the same as released</span></div>
+  <div class="kpi"><span class="kpi__value">{{ awaiting|length }}</span><span class="kpi__label">accepted, awaiting payment</span>
+    <span class="kpi__meta">work delivered and not yet paid for</span></div>
 </div>
 
-{% if awaiting %}
-<div class="card">
-  <h2>Awaiting payment certification</h2>
-  <p>These contracts have been accepted but payment has not yet been certified.</p>
-  <table class="data">
-    <thead><tr><th>Contract</th><th>Supplier</th><th>Value</th><th>Accepted</th><th>Agency</th></tr></thead>
-    <tbody>
-    {% for c in awaiting %}
-    <tr>
-      <td><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></td>
-      <td>{{ c.award.bid.supplier.legal_name }}</td>
-      <td>₦{{ c.value|floatformat:2 }}</td>
-      <td>{{ c.acceptances.first.inspected_at|date:"d M Y"|default:"—" }}</td>
-      <td>{{ c.award.tender.agency.code }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% if years %}
+  <form class="filters" method="get" action="/tenders/payments/">
+    <div class="filters__grid">
+      <div class="field">
+        <label class="field__label" for="pay-year">Year certified</label>
+        <select id="pay-year" name="year">
+          <option value="">All years</option>
+          {% for y in years %}<option value="{{ y.year }}" {% if year == y.year|stringformat:"s" %}selected{% endif %}>{{ y.year }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="filters__actions"><button class="btn" type="submit">Show this year</button></div>
+  </form>
 {% endif %}
 
-<div class="card">
-  <h2>Certified payments</h2>
-  <table class="data">
-    <thead><tr><th>Reference</th><th>Contract</th><th>Supplier</th><th>Amount</th><th>Certified by</th><th>Treasury ref</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for p in certs %}
-    <tr>
-      <td>{{ p.reference }}</td>
-      <td><a href="/tenders/contracts/{{ p.contract.reference }}/">{{ p.contract.reference }}</a></td>
-      <td>{{ p.contract.award.bid.supplier.legal_name }}</td>
-      <td>₦{{ p.amount|floatformat:2 }}</td>
-      <td>{{ p.certified_by.get_full_name|default:p.certified_by.username }}</td>
-      <td>{{ p.treasury_ref|default:"—" }}</td>
-      <td>{{ p.certified_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% if certs %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Payment certifications, scrollable">
+    <table class="data data--sticky-first">
+      <caption>Payment certifications, most recently certified first. Times are West Africa Time.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Certified</th>
+          <th scope="col">Contract</th>
+          <th scope="col" class="hide-xs">Supplier</th>
+          <th scope="col" class="num">Amount</th>
+          <th scope="col" class="hide-xs">Acceptance</th>
+          <th scope="col" class="hide-xs">Treasury reference</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in certs %}
+          <tr>
+            <td>{{ p.certified_at|shortdate }}</td>
+            <th scope="row"><a href="/tenders/contracts/{{ p.contract.reference }}/">{{ p.contract.reference }}</a>
+              <span class="tiny">{{ p.contract.award.tender.title|truncatewords:8 }}</span></th>
+            <td class="hide-xs">{{ p.contract.award.bid.supplier.legal_name }}</td>
+            <td class="num">{{ p.amount|naira }}</td>
+            <td class="hide-xs">{{ p.acceptance.ref }}
+              <span class="tiny">inspected {{ p.acceptance.inspected_at|shortdate }}</span></td>
+            <td class="hide-xs">{% if p.treasury_ref %}<code>{{ p.treasury_ref }}</code>{% else %}<span class="tag tag--warn">not released</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Showing the {{ certs|length }} most recent. <a href="/api/v1/contracts">Contracts as JSON</a></span>
+  </p>
+{% else %}
+  <div class="empty">
+    <h3>No payment has been certified{% if year %} in {{ year }}{% endif %}</h3>
+    <p>Nothing has been certified against a contract in this view. A certification appears here the moment
+    an acceptance certificate is recorded, and the treasury reference is filled in when funds are released.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/payments/">Show all years</a>
+      <a class="btn btn--secondary" href="/tenders/contracts/">See the contracts that are signed</a>
+    </div>
+  </div>
+{% endif %}
+
+{% if awaiting %}
+<section aria-labelledby="awaiting-h">
+  <h2 id="awaiting-h">Accepted but not yet paid</h2>
+  <p>Work has been inspected and accepted, and the contractor has not been paid. Publishing this list is
+  uncomfortable for the state and useful for the contractor: late payment is the most common way small firms
+  are quietly driven out of public contracting.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Contracts awaiting payment, scrollable">
+    <table class="data">
+      <caption>Contracts at the accepted stage with no payment certification recorded.</caption>
+      <thead><tr><th scope="col">Contract</th><th scope="col">Supplier</th><th scope="col" class="hide-xs">MDA</th><th scope="col" class="num">Contract value</th><th scope="col">Accepted</th></tr></thead>
+      <tbody>
+        {% for c in awaiting %}
+          <tr>
+            <th scope="row"><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></th>
+            <td>{{ c.award.bid.supplier.legal_name }}</td>
+            <td class="hide-xs">{{ c.award.tender.agency.code }}</td>
+            <td class="num">{{ c.value|naira }}</td>
+            <td>{% for a in c.acceptances.all %}{{ a.inspected_at|shortdate }}{% empty %}—{% endfor %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

@@ -1,27 +1,59 @@
-{% extends "base.html" %}
-{% block title %}Bid receipt — {{ receipt_ref }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Bid receipt {{ receipt_ref }} — {{ tender.ocid }}{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>Bid submission receipt</h1>
-  <div class="receipt">
-    <dl>
-      <dt>Receipt reference</dt><dd><code>{{ receipt_ref }}</code></dd>
-      <dt>Tender</dt><dd><a href="/tenders/{{ tender.ocid }}/">{{ tender.ocid }}</a> — {{ tender.title }}</dd>
-      <dt>Agency</dt><dd>{{ tender.agency.name }} ({{ tender.agency.code }})</dd>
-      <dt>Supplier</dt><dd>{{ bid.supplier.legal_name }} (RC {{ bid.supplier.rc_number }})</dd>
-      <dt>Submitted at</dt><dd>{{ bid.submitted_at|date:"d M Y H:i:s" }} UTC</dd>
-      <dt>Late?</dt><dd>{% if bid.late %}<span class="badge bad">Yes</span>{% else %}<span class="badge ok">No</span>{% endif %}</dd>
-      <dt>Commitment hash</dt><dd><code>{{ bid.commitment_hash }}</code></dd>
-      <dt>Status</dt><dd><span class="badge">{{ bid.get_status_display }}</span></dd>
-    </dl>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ tender.ocid }}/">{{ tender.ocid }}</a></li>
+  <li><span aria-current="page">Receipt</span></li>
+</ol></nav>
 
-    <div class="alert ok">
-      <strong>This receipt is your proof of submission.</strong> The commitment hash above was published the instant
-      your bid was received. At the public bid opening, this hash will be verified against the decrypted bid content.
-      Any discrepancy is provable on screen.
+<div class="wrap--narrow">
+  <header class="page-head page-head--ruled">
+    <h1>Bid receipt</h1>
+    <p class="lede">This is the record that your sealed bid reached the Bureau. Keep the reference: it is
+    the only way to prove your bid existed at the deadline.</p>
+  </header>
+
+  {% if sig_valid is False %}
+    <div class="callout callout--danger" role="alert">
+      <span class="callout__title">The receipt signature does not verify</span>
+      <p>This receipt does not match the server's signature for the bid it names. Do not rely on it as
+      evidence of submission: telephone the Bureau immediately on {{ CONTACT_PHONE }}.</p>
     </div>
+  {% else %}
+    <div class="callout callout--ok">
+      <span class="callout__title">Receipt verified against the server's signature</span>
+      <p>The commitment hash below is the one that will be published at the public opening. If it does not
+      match what is published, the bid was altered in transit or in storage — and that is provable.</p>
+    </div>
+  {% endif %}
 
-    <p class="tiny">Verification: <code>sha256({{ tender.ocid }}|{{ bid.supplier.rc_number }}|amount|envelope_sha256|{{ bid.submitted_at|date:"U" }})</code></p>
+  <div class="card">
+    <dl class="kv">
+      <dt>Receipt reference</dt><dd><code>{{ receipt_ref }}</code></dd>
+      <dt>Tender</dt><dd><a href="/tenders/{{ tender.ocid }}/">{{ tender.title }}</a> ({{ tender.ocid }})</dd>
+      <dt>Bidder</dt><dd>{{ bid.supplier.legal_name }} <span class="tiny">{{ bid.supplier.rc_number }}</span></dd>
+      <dt>Submitted</dt><dd>{{ bid.submitted_at|datetime_wat }}</dd>
+      <dt>Commitment hash</dt><dd><span class="hash">{{ bid.commitment_hash }}</span>
+        <span class="tiny">SHA-256 over the bid contents, taken before encryption. The server stores this,
+        not your prices.</span></dd>
+      <dt>Sealed envelope</dt><dd>{{ bid.envelope_sha256|hash_short }}
+        <span class="tiny">Reference to the stored ciphertext. The server cannot open it.</span></dd>
+      <dt>Status</dt><dd>{{ bid.status|status_tag }}</dd>
+      {% if bid.late %}
+        <dt>Late</dt><dd><span class="tag tag--flag">received after the deadline</span>
+          <span class="tiny">A late bid is recorded, published and not evaluated. It also proves the
+          workstation or connection failed, which is worth reporting.</span></dd>
+      {% endif %}
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3>Verify this receipt yourself</h3>
+    <p>At the public opening, the commitment hashes of every bid are published on the tender page and
+    combined into a single commitment root. Compare this hash with the published one. Nothing about this
+    requires trusting the Bureau: the arithmetic either matches or it does not.</p>
+    <p class="tiny"><a href="/tenders/{{ tender.ocid }}/#bids">See the published bids for this tender</a></p>
   </div>
 </div>
 {% endblock %}

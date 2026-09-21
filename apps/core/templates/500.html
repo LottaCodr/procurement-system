@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Something went wrong{% endblock %}
+{% block content %}
+<header class="page-head page-head--ruled">
+  <h1>Something went wrong on our side</h1>
+  <p class="lede">This is a fault in the platform, not in what you typed. The ledger has not been changed:
+  a failed request is refused, never half-written.</p>
+</header>
+<div class="grid grid--2">
+  <div class="card">
+    <h3>What you can do now</h3>
+    <ul>
+      <li><a href="/tenders/">Once more from the tender register</a></li>
+      <li><a href="/tenders/status/">Check whether we are aware of it — service status</a></li>
+      <li><a href="/tenders/help/">Telephone the Bureau: {{ CONTACT_PHONE }}</a></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>If you were submitting something</h3>
+    <p>Nothing was saved. Check that your bid or report was received before assuming it went through:
+    bids always produce a receipt reference, and an unrecorded submission is not a submission.</p>
+  </div>
+</div>
+{% endblock %}

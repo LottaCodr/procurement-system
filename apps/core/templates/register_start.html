@@ -1,26 +1,79 @@
-{% extends "base.html" %}
-{% block title %}Register as a supplier{% endblock %}
-{% block content %}
-<div class="card">
-  <h1>Register as a supplier</h1>
-  <p>Complete your company profile to bid on Taraba State procurement opportunities.
-  Registration is free and your profile will be verified against CAC, TIN, and PenCom records.</p>
-  <p class="muted">Your registration will be saved as a draft — you can stop and resume at any time using the token provided.</p>
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Register as a supplier — six steps, no fee{% endblock %}
+{% block description %}How to register to bid for {{ STATE_NAME }} government contracts: what you need before you start, how long it takes, and what happens after you submit.{% endblock %}
 
-  <div class="steps">
-  {% for num, title, desc in steps %}
-    <div class="step">
-      <span class="step-num">{{ num }}</span>
-      <strong>{{ title }}</strong>
-      <span class="muted">{{ desc }}</span>
-    </div>
-  {% endfor %}
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Supplier registration</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Register to bid</h1>
+  <p class="lede">Registration is free, takes about twenty minutes, and needs no agent. You will need your
+  CAC registration number, your tax identification number, and scans or phone photographs of your
+  certificates. The platform keeps your draft for thirty days, so you can start on a phone and finish later.</p>
+</header>
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="steps-h">
+      <h2 id="steps-h">What the form asks for</h2>
+      <ol class="steps">
+        {% for number, title, description in steps %}
+          <li>
+            <strong>{{ number }}. {{ title }}</strong>
+            <span class="tiny">{{ description }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section aria-labelledby="before-h">
+      <h2 id="before-h">Before you start</h2>
+      <ul>
+        <li><strong>Your RC number and TIN.</strong> The platform checks both against the registries and
+          records the check and its date on your file.</li>
+        <li><strong>Certificate expiry dates.</strong> A tax clearance that lapses suspends your bidding
+          automatically — it will not surprise you at a submission desk.</li>
+        <li><strong>Your beneficial owners.</strong> Anyone holding 5% or more, with their percentage.
+          This is the register that stops a company belonging to the official who awards its contract.</li>
+        <li><strong>A phone number you answer.</strong> All notices are sent by SMS as well as email,
+          because most bidders here do not read email daily.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="after-h">
+      <h2 id="after-h">What happens after you submit</h2>
+      <ol>
+        <li>You get a reference number immediately, and a copy of everything you submitted.</li>
+        <li>A Bureau officer checks your documents against the registry records. The check, its date and
+          the officer's role are recorded on your file.</li>
+        <li>If something is missing, you are told exactly what — with the specific field named, not
+          "application failed".</li>
+        <li>Once approved you can bid on any open tender, and your profile appears in the
+          <a href="/tenders/suppliers/">supplier register</a> with the same information everyone else can see.</li>
+      </ol>
+    </section>
   </div>
 
-  <form method="post" action="/api/wf/vendor/register/start" id="start-form">
-    <button type="submit" class="btn primary">Start registration</button>
-  </form>
-
-  <p class="tiny">Already have a draft token? <a href="/register/form/">Resume your registration</a>.</p>
+  <aside aria-label="Start registration">
+    <div class="card">
+      <h2>Start or continue</h2>
+      <p>You do not need an account to begin. Your draft is held against a private link, so nothing is
+      published until you submit it.</p>
+      <p><a class="btn btn--block" href="/tenders/register/form/">Begin registration</a></p>
+      <p class="tiny">If you registered before and want to see your entries, use the private link you were
+      given when you saved. If you have lost it, telephone the Bureau and quote your company name and RC
+      number.</p>
+    </div>
+    <div class="card">
+      <h2>Help with the form</h2>
+      <p>Assisted desks in each local government area will fill the form in with you, free of charge.
+      <a href="/tenders/agent-desk/">Find the nearest desk</a>, or telephone
+      <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>.</p>
+      <p class="tiny">No one may charge you a fee to register. Anyone who does is committing an offence
+      and you can <a href="/tenders/whistleblower/">report it anonymously</a>.</p>
+    </div>
+  </aside>
 </div>
 {% endblock %}

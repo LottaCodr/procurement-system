@@ -1,0 +1,100 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ auction.tender.title }} — reverse auction{% endblock %}
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/auctions/">Reverse auctions</a></li>
+  <li><span aria-current="page">{{ auction.tender.ocid }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ auction.tender.agency.name }} · {{ auction.tender.ocid }}</p>
+  <h1>{{ auction.tender.title }}</h1>
+  <div class="cluster">
+    {% if is_live %}<span class="tag tag--open">live now</span>
+    {% elif is_upcoming %}<span class="tag tag--warn">opens {{ auction.starts_at|shortdate }}</span>
+    {% else %}<span class="tag tag--closed">closed {{ auction.ends_at|shortdate }}</span>{% endif %}
+    <span class="tag tag--plain">reserve {{ auction.reserve_price|naira }}</span>
+  </div>
+</header>
+
+{% if is_live %}
+  <div class="callout callout--info" role="status">
+    <span class="callout__title">Auction ends {{ auction.ends_at|datetime_wat }}</span>
+    <p>Bids are ranked as they arrive. You can see your rank and the distance to the best price; you
+    cannot see anyone else's amount, and nobody can see yours.</p>
+  </div>
+{% endif %}
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="ranking-h">
+      <h2 id="ranking-h">Bidding</h2>
+      {% if ranked_bids %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Auction bids, scrollable">
+          <table class="data">
+            <caption>Ranks and distances from the leading bid. Absolute amounts are published only after
+            the auction closes, and only for the winner.</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="num">Rank</th>
+                <th scope="col">Bidder</th>
+                <th scope="col" class="num">Distance from best</th>
+                <th scope="col" class="num">Your price</th>
+                <th scope="col">Placed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in ranked_bids %}
+                <tr>
+                  <td class="num">{{ b.rank }}{% if b.rank == 1 %} <span class="visually-hidden">leading bid</span>{% endif %}</td>
+                  <th scope="row">{{ b.supplier.legal_name }}</th>
+                  <td class="num">{% if b.rank == 1 %}<span class="tag tag--open">lowest</span>{% else %}+{{ b.delta_to_l1|naira_exact }}{% endif %}</td>
+                  <td class="num">{% if ended %}{{ b.amount|naira_exact }}{% else %}<span class="muted">sealed</span>{% endif %}</td>
+                  <td>{{ b.bid_at|relative }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No valid bid has been placed yet. The reserve price is {{ auction.reserve_price|naira }};
+        a bid above it does not win.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="rules-h">
+      <h2 id="rules-h">Rules of this auction</h2>
+      <div class="card">
+        <ul>
+          <li>Only bidders who passed the pre-qualification for this tender may bid.</li>
+          <li>Bids are sealed until the window closes. Ranking is published; amounts are not.</li>
+          <li>The reserve of {{ auction.reserve_price|naira }} is the maximum the state will pay.</li>
+          <li>A bid below cost is valid but will be examined: the platform records it and flags it for review.</li>
+          <li>Timings are West Africa Time; the server clock decides, and its decision is recorded on the ledger.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <aside aria-label="Auction details">
+    <div class="card">
+      <h2>Timings</h2>
+      <dl class="kv kv--stack">
+        <dt>Opens</dt><dd>{{ auction.starts_at|datetime_wat }}</dd>
+        <dt>Closes</dt><dd>{{ auction.ends_at|datetime_wat }}</dd>
+        {% if is_live %}<dt>Time remaining</dt><dd>{{ seconds_remaining }} seconds</dd>{% endif %}
+        <dt>State</dt><dd>{% if auction.is_active %}active{% else %}closed{% endif %}</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h2>The tender behind it</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/{{ auction.tender.ocid }}/">Full tender record</a></li>
+        <li><a href="/tenders/{{ auction.tender.ocid }}/evaluation/">Evaluation workspace</a></li>
+        <li><a href="/tenders/{{ auction.tender.ocid }}/objections/">Objections</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

@@ -1,13 +1,35 @@
-{% extends "base.html" %}
-{% block title %}Tender closed{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Bidding is closed — {{ t.ocid }}{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>Submission closed</h1>
-  <p>This tender is no longer accepting bids.</p>
-  <dl>
-    <dt>Tender</dt><dd><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> — {{ t.title }}</dd>
-    <dt>Status</dt><dd>{{ t.get_status_display }}</dd>
-    <dt>Deadline was</dt><dd>{{ t.submission_close_at|date:"d M Y H:i" }}</dd>
-  </dl>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></li>
+  <li><span aria-current="page">Bidding closed</span></li>
+</ol></nav>
+
+<div class="wrap--narrow">
+  <header class="page-head page-head--ruled">
+    <h1>Bidding on this tender is closed</h1>
+    <p class="lede">{{ t.title }} is at the <strong>{{ t.get_status_display }}</strong> stage.
+    {% if t.submission_close_at %}The submission window ended {{ t.submission_close_at|datetime_wat }}.{% endif %}</p>
+  </header>
+
+  <div class="callout callout--info">
+    <span class="callout__title">Late bids are refused, and that is deliberate</span>
+    <p>Extending a deadline after the fact is the oldest way to let a favoured bidder in. The platform
+    refuses late submissions and records the attempt, so a fairness question becomes a fact rather than an
+    argument.</p>
+  </div>
+
+  <div class="card">
+    <h3>What you can still do</h3>
+    <ul>
+      <li><a href="/tenders/{{ t.ocid }}/">Read the record, the bids received and the commitment hashes</a></li>
+      <li><a href="/tenders/{{ t.ocid }}/objections/">See objections filed on this process</a></li>
+      <li><a href="/tenders/?open=1&amp;sort=closing">Find tenders that are open now</a></li>
+      <li><a href="/tenders/feed/tenders/">Subscribe to new notices by RSS</a> — or ask the Bureau to send
+        them by SMS from <a href="/tenders/register/">your supplier profile</a>.</li>
+    </ul>
+  </div>
 </div>
 {% endblock %}

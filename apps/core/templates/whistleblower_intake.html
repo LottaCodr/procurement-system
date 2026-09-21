@@ -1,0 +1,121 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{% if errors %}Error: {% endif %}Report corruption anonymously{% endblock %}
+{% block description %}Report suspected corruption in {{ STATE_NAME }} public procurement. No account, no name required, encrypted before it is stored, with a reference number to check what happened.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Report corruption</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Report corruption in procurement</h1>
+  <p class="lede">No account. No name required. Nothing you write here is readable by the platform
+  administrators who run this site: the report is encrypted with a key derived per deployment before it is
+  stored, and the database holds ciphertext.</p>
+</header>
+
+{% if case %}
+  <div class="callout callout--ok" role="status" id="case-created" autofocus tabindex="-1">
+    <span class="callout__title">Your report has been received — reference <code>{{ case.ref }}</code></span>
+    <p>Write the reference down now. It is the only way to check what happened, and it is deliberately not
+    linked to you.</p>
+    <p><a href="/tenders/whistleblower/status/{{ case.ref }}/">Check the status of this reference</a></p>
+  </div>
+{% endif %}
+
+{% if errors %}
+  {% comment %} GOV.UK error-summary pattern: on failure the page is re-rendered with the
+     reporter's own words intact, an error summary is focused, and each error
+     links to the field it belongs to. Nothing typed is ever thrown away. {% endcomment %}
+  <div class="error-summary" role="alert" aria-labelledby="error-summary-title" tabindex="-1" autofocus id="error-summary">
+    <h2 id="error-summary-title">There is a problem with this report</h2>
+    <ul>
+      {% for field, message in errors.items %}
+        <li><a href="#{{ field }}">{{ message }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<div class="grid grid--side">
+  <div>
+    <form class="form" method="post" action="/tenders/whistleblower/" novalidate>
+      {% csrf_token %}
+
+      <div class="field {% if errors.body %}field--invalid{% endif %}">
+        <label class="field__label" for="body">What do you want to report?</label>
+        <span class="field__hint" id="body-hint">
+          Write what you saw, when and where it happened, and who was involved if you know.
+          Do not include anything that identifies you unless you want it published — this text is read by
+          the investigators, not posted publicly.
+        </span>
+        <textarea id="body" name="body" rows="12" aria-describedby="body-hint{% if errors.body %} body-error{% endif %}"
+                  {% if errors.body %}aria-invalid="true"{% endif %}
+                  placeholder="For example: the tender for borehole rehabilitation in Bali, advertised on…">
+{{ body }}</textarea>
+        {% if errors.body %}<p class="field__error" id="body-error">{{ errors.body }}</p>{% endif %}
+        <p class="tiny">At least 40 characters, up to 8,000. {{ body|length }} so far.</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="tender_ocid">Which tender is this about? (optional)</label>
+        <span class="field__hint" id="ocid-hint">The reference in the format TAR-XXX-2026-0001. If you do not
+        know it, the investigators can find the process from what you describe.</span>
+        <input id="tender_ocid" name="tender_ocid" type="text" value="{{ tender_ocid }}"
+               spellcheck="false" autocapitalize="characters" aria-describedby="ocid-hint">
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="contact">How can we reach you? (optional)</label>
+        <span class="field__hint" id="contact-hint">Phone or email. It is stored only as a one-way hash, so
+        the investigators can verify that a message claiming to be you is you — the Bureau cannot read it
+        back or contact you from it.</span>
+        <input id="contact" name="contact" type="text" value="{{ contact }}" autocomplete="off"
+               aria-describedby="contact-hint">
+      </div>
+
+      <button class="btn" type="submit">Submit the report</button>
+      <p class="tiny">You will get a reference number immediately. If the connection drops while you are
+      submitting, nothing is stored and you will need to write it again — that is a real limitation, and it
+      is published here rather than discovered by you at the wrong moment.</p>
+    </form>
+  </div>
+
+  <aside aria-label="How this channel works and what it cannot do">
+    <div class="card">
+      <h2>What happens next</h2>
+      <ol>
+        <li>The report is encrypted and stored. Its reference is logged; its contents are not.</li>
+        <li>The Bureau's integrity unit opens it and records a triage decision.</li>
+        <li>If it relates to a live procurement, an investigator can freeze the procedure for ten days
+          while it is examined.</li>
+        <li>The outcome — dismissed, referred, or acted on — is recorded against your reference. You can
+          check it with the reference alone.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout--warn">
+      <span class="callout__title">The honest limits of this channel</span>
+      <ul>
+        <li>It is <strong>not</strong> Tor-grade anonymity. The Bureau cannot read your report, but the
+          network can see that someone visited this page.</li>
+        <li>If you need to remain unknown to the state itself, report through a journalist or a civil
+          society organisation you trust, or use a public computer in another town.</li>
+        <li>This channel is for corruption in public procurement. Threats to life should go to the police.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>What to include to make it actionable</h2>
+      <ul>
+        <li>The tender reference or the project, and the MDA involved.</li>
+        <li>What was demanded, offered or decided, and the date.</li>
+        <li>Which rule was broken — <a href="/tenders/rules/">the threshold table</a> and the
+          <a href="/tenders/indicators/">red-flag indicators</a> are published so you can check.</li>
+        <li>Anything unusual you noticed: a short advertisement window, a company that always wins, a price
+          far above the market.</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

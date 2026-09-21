@@ -1,0 +1,80 @@
+/* ==========================================================================
+   05 — UTILITIES AND SMALL VOCABULARY
+   --------------------------------------------------------------------------
+   The handful of text and table rules the templates use everywhere. They live
+   in their own layer for two reasons:
+
+   * Load order. Utilities must win over component defaults without anyone
+     reaching for `!important`, and the build concatenates these sources in
+     filename order.
+   * Vocabulary discipline. Anything that appears here is a documented word in
+     the design system. A template that needs something not in this file is a
+     signal that the language is missing a concept — not a licence to write a
+     one-off style.
+
+   Nothing in this file is allowed to carry meaning on its own: `.tiny` and
+   `.muted` reduce emphasis, never information. A figure that matters must stay
+   readable at 200% zoom and in high-contrast mode, so the smallest size used
+   for real content is 13px (WCAG 2.2 does not mandate a minimum size, but
+   readability on a 320px screen does).
+   ========================================================================== */
+
+/* ------------------------------------------------------------- text helpers */
+.tiny {
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+  line-height: 1.5;
+  font-weight: 400;
+}
+/* Inside a table's row header the meta line stacks under the title, so the two
+   never read as one string ("Rehabilitation of boreholesMOH-2026-03"). */
+th > .tiny, td > .tiny, dd > .tiny, li > .tiny, .kpi > .tiny { display: block; }
+p.tiny { max-width: var(--measure); }
+
+.muted { color: var(--c-muted); }
+
+/* A number that has to be compared with the one above it is tabular. */
+.num, .money, .kpi__value { font-variant-numeric: tabular-nums; }
+
+/* Money and long identifiers. `data` elements carry the exact value in the
+   `value` attribute, so the compact form on screen is always backed by the
+   full amount for anyone copying, hovering or reading with an assistive
+   technology. */
+.money { white-space: nowrap; }
+.money--exact { font-weight: 650; }
+
+/* Timezone markers read as part of the timestamp, not as an aside. */
+abbr.tz { text-decoration: none; font-size: 0.85em; letter-spacing: 0.02em; }
+
+/* --------------------------------------------------------------- form width */
+.field__input--narrow { max-width: 10rem; }
+
+/* ------------------------------------------------------------ table footers */
+/* A totals row is a summary, so it is separated by a rule and set slightly
+   heavier than the rows it summarises — the visual grammar of "this adds them
+   up" rather than "this is another row". */
+table.data tfoot th,
+table.data tfoot td {
+  border-top: 2px solid var(--c-line-strong);
+  background: var(--c-surface-2);
+  font-weight: 650;
+  color: var(--c-ink);
+}
+
+/* ------------------------------------------------------- error summary focus */
+/* The error summary is focused when a form fails validation. It must be
+   visibly focusable, not merely focusable: a keyboard user has to be able to
+   see where they have been moved to. */
+.error-summary:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+
+/* ------------------------------------------------------------- screen reader */
+/* Announced-but-not-shown text used for the sort state of a column and the
+   units behind a big number. */
+.sr-suffix { font-size: 0.9em; color: var(--c-muted); font-weight: 400; }
+
+/* --------------------------------------------------------------- empty state */
+/* One empty state per page, styled the same everywhere: it states the fact,
+   then offers at most two ways forward. */
+.empty h3 { margin-top: 0; }
+.empty p { color: var(--c-muted); }
+.empty .cluster { margin-top: var(--s4); }

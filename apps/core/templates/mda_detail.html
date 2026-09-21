@@ -1,0 +1,154 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{{ agency.name }} — procurement activity {{ year }}{% endblock %}
+{% block description %}{{ agency.name }} ({{ agency.code }}): everything this agency advertised, awarded and signed in {{ year }}, month by month.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/mdas/">MDAs</a></li>
+  <li><span aria-current="page">{{ agency.code }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ agency.kind|capfirst }}{% if agency.lga %} · {{ agency.lga }}{% endif %}{% if agency.contact_email %} · {{ agency.contact_email }}{% endif %}</p>
+  <h1>{{ agency.name }}</h1>
+  <p class="lede">Every procurement this agency put into the register in {{ year }}, with the month it
+  happened. Agencies are the unit of accountability that actually exists: a ministry can attribute blame to
+  "the system" far more easily than it can explain its own direct-procurement share.</p>
+  <div class="cluster">
+    <span class="tag tag--plain">{{ tenders|length }} process{{ tenders|length|pluralize:"es" }}</span>
+    <span class="tag tag--plain">{{ awards|length }} award{{ awards|length|pluralize }}</span>
+    <span class="tag tag--plain">{{ contracts|length }} contract{{ contracts|length|pluralize }}</span>
+    {% if agency.is_active %}<span class="tag tag--open">active</span>{% else %}<span class="tag tag--closed">inactive</span>{% endif %}
+  </div>
+</header>
+
+{% if row %}
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ row.value|naira }}</span><span class="kpi__label">advertised value</span>
+    <span class="kpi__meta">{{ row.tenders }} process{{ row.tenders|pluralize:"es" }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ row.awarded|naira }}</span><span class="kpi__label">awarded</span>
+    <span class="kpi__meta">{{ row.awards }} award{{ row.awards|pluralize }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ row.contracted|naira }}</span><span class="kpi__label">signed contracts</span>
+    <span class="kpi__meta">{{ row.contracts }} contract{{ row.contracts|pluralize }}</span></div>
+  <div class="kpi">
+    <span class="kpi__value">{{ row.direct_pct|pct }}</span>
+    <span class="kpi__label">direct procurement share</span>
+    <span class="kpi__meta">{% if row.direct_alarm %}<span class="tag tag--flag">above the published attention line</span>{% else %}within the published attention line{% endif %}</span>
+  </div>
+</div>
+
+<section aria-labelledby="month-h">
+  <h2 id="month-h">Month by month, {{ year }}</h2>
+  <p>Advertised value and awarded value, side by side. A month with a large advertised value and no award
+  is not necessarily wrong — a pipeline takes time — but a year of that pattern is worth a question.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Monthly activity, scrollable">
+    <table class="data">
+      <caption>Monthly procurement activity for {{ agency.name }} in {{ year }}.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Month</th>
+          <th scope="col" class="num">Advertised</th>
+          <th scope="col">Relative size</th>
+          <th scope="col" class="num">Processes</th>
+          <th scope="col" class="num">Awarded</th>
+          <th scope="col" class="num">Awards</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in monthly %}
+          <tr>
+            <th scope="row">{{ m.month }}</th>
+            <td class="num">{{ m.value|naira }}</td>
+            <td>{% widthratio m.value peak 100 as w %}{% bar w %}<span class="visually-hidden">{% widthratio m.value peak 100 %}% of the busiest month</span></td>
+            <td class="num">{{ m.tenders }}</td>
+            <td class="num">{{ m.awarded|naira }}</td>
+            <td class="num">{{ m.awards }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+  <div class="callout callout--info">
+    <span class="callout__title">No activity recorded for {{ year }}</span>
+    <p>{{ agency.name }} has nothing in the register for {{ year }}. The page says so rather than showing
+    an empty chart: a blank month and a zero-spend month should not look the same.</p>
+  </div>
+{% endif %}
+
+{% if tenders %}
+<section aria-labelledby="agency-tenders">
+  <h2 id="agency-tenders">Processes advertised</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Agency tenders, scrollable">
+    <table class="data">
+      <caption>Tenders this agency advertised in {{ year }}.</caption>
+      <thead><tr><th scope="col">Tender</th><th scope="col">Method</th><th scope="col">Status</th><th scope="col" class="num">Estimate</th><th scope="col">Published</th></tr></thead>
+      <tbody>
+        {% for t in tenders %}
+          <tr>
+            <th scope="row"><a href="/tenders/{{ t.ocid }}/">{{ t.title }}</a><span class="tiny">{{ t.ocid }}</span></th>
+            <td>{{ t.get_method_display }}</td>
+            <td>{{ t.status|status_tag }}</td>
+            <td class="num">{{ t.est_value|naira }}</td>
+            <td>{{ t.published_at|shortdate }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if awards %}
+<section aria-labelledby="agency-awards">
+  <h2 id="agency-awards">Awards</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Agency awards, scrollable">
+    <table class="data">
+      <caption>Who this agency awarded to in {{ year }}, and for how much.</caption>
+      <thead><tr><th scope="col">Published</th><th scope="col">Process</th><th scope="col">Won by</th><th scope="col" class="num">Amount</th><th scope="col">Reason</th></tr></thead>
+      <tbody>
+        {% for a in awards %}
+          <tr>
+            <td>{{ a.published_at|shortdate }}</td>
+            <th scope="row"><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title|truncatewords:8 }}</a></th>
+            <td>{{ a.bid.supplier.legal_name }}<span class="tiny">{{ a.bid.supplier.rc_number }}</span></td>
+            <td class="num">{{ a.amount|naira }}</td>
+            <td>{{ a.reason|truncatewords:20 }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if contracts %}
+<section aria-labelledby="agency-contracts">
+  <h2 id="agency-contracts">Contracts signed</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Agency contracts, scrollable">
+    <table class="data">
+      <caption>Contracts this agency signed in {{ year }}, with variation growth.</caption>
+      <thead><tr><th scope="col">Reference</th><th scope="col">Supplier</th><th scope="col" class="num">Value</th><th scope="col" class="num">Variation</th><th scope="col">Status</th><th scope="col">Signed</th></tr></thead>
+      <tbody>
+        {% for c in contracts %}
+          <tr>
+            <th scope="row"><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></th>
+            <td>{{ c.award.bid.supplier.legal_name }}</td>
+            <td class="num">{{ c.value|naira }}</td>
+            <td class="num">{{ c.variation_pct|pct }}</td>
+            <td>{{ c.status|status_tag }}</td>
+            <td>{{ c.signed_at|shortdate }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<p class="tiny">Data as at {% now "j M Y, H:i" %} WAT.
+  <a href="/tenders/?agency={{ agency.code }}">Filter the register to this agency</a> ·
+  <a href="/api/v1/tenders?agency={{ agency.code }}">the same set as JSON</a></p>
+{% endblock %}

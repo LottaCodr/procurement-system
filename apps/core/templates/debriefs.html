@@ -1,39 +1,77 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load core_tags %}
 {% block title %}Debriefs — {{ t.ocid }}{% endblock %}
+{% block description %}Debrief requests from losing bidders on {{ t.ocid }}, the ten-working-day deadline for an answer, and the written response published in full.{% endblock %}
+
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/">Tenders</a> &rsaquo;
-  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Debriefs
-</nav>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></li>
+  <li><span aria-current="page">Debriefs</span></li>
+</ol></nav>
 
-<div class="card">
-  <h1>Debrief requests</h1>
-  <p>Losing bidders have a statutory right to request a debrief within 10 working days.
-  The response is published. This is how a losing bidder learns why they did not win —
-  and how the public verifies the evaluation was fair.</p>
-</div>
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ t.agency.name }} · {{ t.title }}</p>
+  <h1>Debrief log</h1>
+  <p class="lede">A losing bidder has a right to know why they lost. Here that right has a deadline and a
+  document: {{ debriefs|length }} request{{ debriefs|length|pluralize }}, each with the date it was due and
+  the written answer, published for everyone — because an answer given to one bidder privately is an
+  opportunity for the next one.</p>
+</header>
 
-{% for d in debriefs %}
-<div class="card">
-  <div class="grid-2">
-    <div>
-      <h3>{{ d.supplier.legal_name }}</h3>
-      <dl>
-        <dt>Award</dt><dd>₦{{ d.award.amount|floatformat:2 }} to {{ d.award.bid.supplier.legal_name }}</dd>
-        <dt>Requested</dt><dd>{{ d.requested_at|date:"d M Y H:i" }}</dd>
-        <dt>Due by</dt><dd>{{ d.due_by|date:"d M Y H:i" }}</dd>
-        <dt>Status</dt>
-        <dd><span class="badge {% if d.status == 'COMPLETED' %}ok{% elif d.status == 'OVERDUE' %}bad{% endif %}">{{ d.get_status_display }}</span></dd>
-      </dl>
-    </div>
-    <div>
-      {% if d.questions %}<h4>Questions</h4><p>{{ d.questions }}</p>{% endif %}
-      {% if d.response %}<h4>Response</h4><p>{{ d.response }}</p>
-      <p class="tiny">Responded {{ d.responded_at|date:"d M Y" }} by {{ d.responded_by.get_full_name|default:d.responded_by.username }}</p>{% endif %}
+{% if debriefs %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Debrief requests, scrollable">
+    <table class="data">
+      <caption>Debrief requests on this process. "Overdue" means the ten-working-day statutory deadline
+      passed without an answer, and the platform says so.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Requested by</th>
+          <th scope="col">Requested</th>
+          <th scope="col">Due by</th>
+          <th scope="col">State</th>
+          <th scope="col">Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in debriefs %}
+          <tr>
+            <th scope="row">{{ d.supplier.legal_name }}
+              <span class="tiny">{{ d.supplier.rc_number }}</span></th>
+            <td>{{ d.requested_at|shortdate }}</td>
+            <td>{{ d.due_by|shortdate }}
+              {% if d.status == "OVERDUE" %}<span class="tag tag--flag">overdue</span>{% endif %}</td>
+            <td>{{ d.status|status_tag }}</td>
+            <td>
+              {% if d.response %}
+                <details>
+                  <summary>Read the published response</summary>
+                  <p>{{ d.response }}</p>
+                  <p class="tiny">Answered {{ d.responded_at|shortdate }}
+                    {% if d.responded_by %}by {{ d.responded_by.get_full_name|default:d.responded_by.username }}{% endif %}</p>
+                </details>
+              {% else %}
+                <span class="muted">No response published yet</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span>Responses are published with commercial detail removed where necessary; the removal itself is
+    recorded rather than silent.</span>
+  </p>
+{% else %}
+  <div class="empty">
+    <h3>No bidder has requested a debrief on this process</h3>
+    <p>A debrief is a statutory right of every losing bidder and costs nothing to ask for. This page is
+    where the answers appear, so a pattern of vague debriefs becomes visible.</p>
+    <div class="cluster">
+      <a class="btn" href="/tenders/{{ t.ocid }}/">Back to the tender record</a>
+      <a class="btn btn--secondary" href="/tenders/help/#objection">How to ask for a debrief</a>
     </div>
   </div>
-</div>
-{% empty %}
-<div class="card"><p class="muted">No debrief requests have been filed.</p></div>
-{% endfor %}
+{% endif %}
 {% endblock %}

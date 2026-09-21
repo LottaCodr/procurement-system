@@ -1,44 +1,98 @@
-{% extends "base.html" %}
-{% block title %}File objection — {{ t.ocid }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}File an objection — {{ t.ocid }}{% endblock %}
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/">Tenders</a> &rsaquo;
-  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; File objection
-</nav>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/objections/">Objections</a></li>
+  <li><span aria-current="page">File an objection</span></li>
+</ol></nav>
 
-<div class="card">
-  <h1>File an objection</h1>
-  <p>A credible objection freezes the tender for 10 working days while an independent panel decides.
-  The panel is half-nominated by civil society — the Bureau cannot reject those nominees.</p>
-
-  <dl>
-    <dt>Tender</dt><dd>{{ t.ocid }} — {{ t.title }}</dd>
-    <dt>Award</dt><dd>₦{{ award.amount|floatformat:2 }} to {{ award.bid.supplier.legal_name }}</dd>
-    <dt>Objection window</dt>
-    <dd>{% if objection_until %}Closes {{ objection_until|date:"d M Y H:i" }}{% else %}Not specified{% endif %}</dd>
-  </dl>
-
-  {% if not window_open %}
-  <div class="alert bad">
-    <strong>The objection window has closed.</strong> Objections must be filed within 10 working days of award publication.
-  </div>
+<header class="page-head page-head--ruled">
+  <h1>Object to this award</h1>
+  {% if window_open %}
+    <div class="cluster">
+      <span class="tag tag--open">window open</span>
+      <span class="tag tag--plain">closes {{ objection_until|datetime_wat }}</span>
+    </div>
   {% else %}
-  <form id="objection-form" class="form-stacked">
-    {% csrf_token %}
-    <label>Your identity (published verbatim, or "anonymous")
-      <input name="label" required placeholder="Your name or organisation">
-    </label>
-    <label>Ground for objection
-      <textarea name="ground" required rows="6" placeholder="Describe the specific ground for your objection. Reference the published criteria, evaluation, or procurement law provisions."></textarea>
-    </label>
-    <label>Panel nominees (CSO)
-      <textarea name="cso_panelists" rows="3" placeholder="One per line: Name, Role"></textarea>
-    </label>
-    <label>Panel nominees (Government)
-      <textarea name="gov_panelists" rows="3" placeholder="One per line: Name, Role"></textarea>
-    </label>
-    <button type="submit" class="btn primary">File objection &amp; freeze tender</button>
-  </form>
+    <div class="cluster"><span class="tag tag--flag">window closed</span></div>
   {% endif %}
+</header>
+
+{% if not window_open %}
+  <div class="callout callout--warn">
+    <span class="callout__title">The objection window for this award has closed</span>
+    <p>{% if objection_until %}It closed {{ objection_until|datetime_wat }}.{% endif %} A closed window is a
+    real limit, not a formality, and the platform will not accept a late objection any more than it accepts
+    a late bid. Outside the window, unlawful procurement is a matter for the courts or the Auditor-General;
+    the register remains available as evidence either way.</p>
+    <p><a href="/tenders/{{ t.ocid }}/objections/">Read objections already filed on this process</a> ·
+      <a href="/tenders/help/#objection">Other ways to raise a concern</a></p>
+  </div>
+{% endif %}
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="what-h">
+      <h2 id="what-h">The award you are objecting to</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Awarded to</dt><dd>{{ award.bid.supplier.legal_name }} <span class="tiny">{{ award.bid.supplier.rc_number }}</span></dd>
+          <dt>Amount</dt><dd>{{ award.amount|naira_exact }}</dd>
+          <dt>Reason published</dt><dd>{{ award.reason }}</dd>
+          {% if award.non_lowest_reason %}<dt>Not the lowest bid</dt><dd>{{ award.non_lowest_reason }}</dd>{% endif %}
+          <dt>Notice</dt><dd>{{ award.notice_ref|default:"—" }}{% if award.published_at %},
+            published {{ award.published_at|datetime_wat }}{% endif %}</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section aria-labelledby="how-h">
+      <h2 id="how-h">What an objection needs to contain</h2>
+      <ol>
+        <li><strong>What you say went wrong</strong>, in your own words: the rule you believe was broken and
+          the decision you are asking the panel to change.</li>
+        <li><strong>The facts you rely on</strong>, with dates and references where you have them. You do
+          not need to attach documents to file, and the panel will ask for them if it needs them.</li>
+        <li><strong>Who you are</strong>, or nothing at all. An objection may be filed anonymously; the
+          published file will say "anonymous complainant".</li>
+      </ol>
+      <p class="tiny">Filing starts a ten-day freeze. That is not a courtesy to the objector: it is the only
+      way a review can be meaningful once the contract has been signed and paid.</p>
+    </section>
+
+    <section aria-labelledby="privacy-h">
+      <h2 id="privacy-h">What happens to what you write</h2>
+      <p>The text of your objection is published on the register, because a challenge that is decided in
+      private cannot be checked. If any part of your statement is commercially sensitive, say so in the
+      text and the Bureau will record the fact of a redaction rather than silently dropping it.</p>
+    </section>
+  </div>
+
+  <aside aria-label="Objection status">
+    <div class="card">
+      <h2>Filed from here</h2>
+      {% if window_open %}
+        <p>Filing requires an acknowledgement that you are who you say you are, so that a decision can be
+        communicated back to you. Objections are filed inside the authenticated workspace; the panel
+        composition and every decision are published here regardless.</p>
+        <p><a class="btn btn--block" href="/accounts/login/?next={{ request.path|urlencode }}">Sign in to file</a></p>
+        <p class="tiny">No account? Telephone the Bureau on
+          <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a> during {{ SUPPORT_HOURS }} and an
+          officer will record the objection on the same register. You may also file it in writing by post.</p>
+      {% else %}
+        <p class="muted">Filing is closed for this award.</p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>Before you file</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/{{ t.ocid }}/#evaluation">The evaluation and the weights</a></li>
+        <li><a href="/tenders/{{ t.ocid }}/debriefs/">Debriefs already given</a></li>
+        <li><a href="/tenders/rules/">The rules the decision should follow</a></li>
+      </ul>
+    </div>
+  </aside>
 </div>
 {% endblock %}

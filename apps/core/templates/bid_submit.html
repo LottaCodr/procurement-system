@@ -1,84 +1,146 @@
-{% extends "base.html" %}
-{% block title %}Submit bid — {{ t.ocid }}{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Bid on {{ t.title }} — {{ t.ocid }}{% endblock %}
+{% block description %}How to submit a bid for {{ t.title }}: who may bid, what is required, how sealing works, and what happens at the public opening.{% endblock %}
+
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/">Tenders</a> &rsaquo;
-  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Submit bid
-</nav>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></li>
+  <li><span aria-current="page">Submit a bid</span></li>
+</ol></nav>
 
-<div class="card">
-  <h1>Submit a bid</h1>
-  <dl>
-    <dt>Tender</dt><dd>{{ t.ocid }} — {{ t.title }}</dd>
-    <dt>Agency</dt><dd>{{ t.agency.name }}</dd>
-    <dt>Method</dt><dd>{{ t.get_method_display }}</dd>
-    <dt>Estimate</dt><dd>{{ t.estimate_display }}</dd>
-    <dt>Deadline</dt><dd>{{ t.submission_close_at|date:"d M Y H:i" }} UTC ({{ t.days_to_close }} days remaining)</dd>
-    {% if t.bid_security_amount %}<dt>Bid security</dt><dd>₦{{ t.bid_security_amount|floatformat:2 }}</dd>{% endif %}
-  </dl>
-</div>
-
-{% if lots %}
-<div class="card">
-  <h2>Lots</h2>
-  <table class="data">
-    <thead><tr><th>#</th><th>Title</th><th>Quantity</th><th>Estimate</th></tr></thead>
-    <tbody>
-    {% for l in lots %}
-    <tr>
-      <td>{{ l.seq }}</td><td>{{ l.title }}</td>
-      <td>{% if l.quantity %}{{ l.quantity }} {{ l.unit }}{% else %}—{% endif %}</td>
-      <td>{% if l.est_value %}₦{{ l.est_value|floatformat:2 }}{% else %}—{% endif %}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if criteria %}
-<div class="card">
-  <h2>Evaluation criteria</h2>
-  <table class="data">
-    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Weight</th></tr></thead>
-    <tbody>
-    {% for c in criteria %}
-    <tr><td>{{ c.code }}</td><td>{{ c.name }}</td><td>{{ c.get_kind_display }}</td><td>{{ c.weight }}%</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-<div class="card">
-  <h2>Bid submission</h2>
-  {% if not user_party %}
-  <div class="alert warn">
-    <strong>You must be a registered, verified supplier to submit a bid.</strong>
-    <a href="/register/">Register here</a>.
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ t.agency.name }} · {{ t.get_method_display }}</p>
+  <h1>Bid on this tender</h1>
+  <div class="cluster">
+    {{ t.status|status_tag }}
+    {% if t.submission_close_at %}{{ t.submission_close_at|deadline }}{% endif %}
+    <span class="tag tag--plain">estimate {{ t.est_value|naira }}</span>
   </div>
-  {% else %}
-  <p>Your bid is encrypted client-side with the tender's public key. The server never sees plaintext
-  until the public bid opening ceremony. Your commitment hash is published immediately as your receipt.</p>
-  <form id="bid-form" class="form-stacked">
-    {% csrf_token %}
-    <label>Bid amount (₦) <input type="number" name="amount" step="0.01" required></label>
-    <label>Delivery duration (days) <input type="number" name="duration_days" value="90"></label>
-    <label>Declaration
-      <textarea name="declaration" rows="4" placeholder="I declare that this bid is genuine, that I have no undisclosed relationships with evaluation committee members, and that I meet all published criteria."></textarea>
-    </label>
-    <button type="submit" class="btn primary">Encrypt &amp; submit bid</button>
-  </form>
-  {% endif %}
+</header>
 
-  <div class="card-inner">
-    <h3>Sealing key</h3>
-    {% if public_keys %}
-    <p>The tender's public encryption key is published. Your browser encrypts the bid before sending it.</p>
-    <p class="tiny">Custodians: {{ public_keys|length }} — keys are released at the public opening ceremony.</p>
-    {% else %}
-    <p class="muted">Sealing key not yet available.</p>
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="eligibility-h">
+      <h2 id="eligibility-h">Who may bid</h2>
+      <ul>
+        <li>A supplier <strong>registered and verified</strong> on this platform. Registration is free:
+          <a href="/tenders/register/">start here</a>.</li>
+        <li><strong>Not debarred.</strong> The platform refuses a bid from a debarred firm and logs the
+          attempt, so nobody is rejected by an official deciding quietly at a desk.</li>
+        <li><strong>Certificates current.</strong> A lapsed tax clearance suspends bidding automatically.</li>
+        {% if t.reserved_for_local_pct %}
+          <li><strong>{{ t.reserved_for_local_pct }}% of this contract is reserved for Taraba-domiciled
+            firms.</strong> The reservation is enforced by the platform, and the local-content share is
+            published on the award.</li>
+        {% endif %}
+        {% if t.sme_set_aside_pct %}
+          <li><strong>{{ t.sme_set_aside_pct }}% is set aside for small and medium enterprises.</strong></li>
+        {% endif %}
+      </ul>
+    </section>
+
+    <section aria-labelledby="how-h">
+      <h2 id="how-h">How submission works</h2>
+      <ol>
+        <li><strong>You prepare a priced bid</strong> against the criteria below, in the form the tender
+          documents specify.</li>
+        <li><strong>You submit it sealed.</strong> The bid is encrypted in your browser before it leaves
+          your device. The server stores a ciphertext and a commitment hash — it cannot read your price
+          either, which is the point: a system administrator cannot sell what the system cannot see.</li>
+        <li><strong>You get a receipt immediately</strong> with the commitment hash and a verification
+          link. That hash is published at the public opening, so a bid substituted afterwards is provable.</li>
+        <li><strong>Bids are opened publicly</strong> at {{ t.opening_at|datetime_wat }}
+          {% if t.opening_venue %}at {{ t.opening_venue }}{% endif %}. You may attend.</li>
+        <li><strong>Scores are published</strong> against the criteria, with the committee named and every
+          dissent recorded.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="criteria-h">
+      <h2 id="criteria-h">What your bid will be scored on</h2>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Evaluation criteria, scrollable">
+        <table class="data">
+          <caption>Weights are locked when the tender is published. They cannot be changed once bids exist —
+          that is how a runner-up becomes a winner.</caption>
+          <thead><tr><th scope="col">Code</th><th scope="col">Criterion</th><th scope="col">Type</th><th scope="col" class="num">Weight</th><th scope="col" class="num">Minimum</th></tr></thead>
+          <tbody>
+            {% for c in criteria %}
+              <tr>
+                <td>{{ c.code }}</td>
+                <th scope="row">{{ c.name }}</th>
+                <td>{{ c.get_kind_display }}</td>
+                <td class="num">{{ c.weight|pct }}</td>
+                <td class="num">{{ c.min_score }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    {% if lots %}
+      <section aria-labelledby="lots-h">
+        <h2 id="lots-h">Lots</h2>
+        <p>This tender is divided into lots. You may bid for one or more; each lot is evaluated and awarded
+        separately.</p>
+        <ul>
+          {% for lot in lots %}
+            <li><strong>{{ lot.title }}</strong>{% if lot.quantity %} — {{ lot.quantity|floatformat:"-3" }} {{ lot.unit }}{% endif %}
+              {% if lot.est_value %}<span class="tiny">estimate {{ lot.est_value|naira }}</span>{% endif %}
+              {% if lot.max_awards %}<span class="tiny">maximum {{ lot.max_awards }} award{{ lot.max_awards|pluralize }} per bidder</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </section>
     {% endif %}
   </div>
+
+  <aside aria-label="Submission">
+    <div class="card">
+      <h2>Submit</h2>
+      {% if user_party %}
+        <p>You are signed in as <strong>{{ user_party.legal_name }}</strong>. Bidding is performed inside
+        the authenticated supplier workspace.</p>
+        <p><a class="btn btn--block" href="/accounts/login/?next={{ request.path|urlencode }}">Open the bidding workspace</a></p>
+      {% else %}
+        <p><strong>You are not signed in.</strong> Bidding happens inside the authenticated supplier
+        workspace, which confirms who is bidding before a sealed envelope is accepted.</p>
+        <p><a class="btn btn--block" href="/accounts/login/?next={{ request.path|urlencode }}">Sign in to bid</a></p>
+        <p class="tiny">Not registered yet? <a href="/tenders/register/">Registration is free and takes
+        about twenty minutes</a>. No account is ever needed to read the register.</p>
+      {% endif %}
+    </div>
+
+    {% if sealing %}
+      <div class="card">
+        <h2>Sealing keys published</h2>
+        <p class="tiny">These are the public keys your browser will encrypt to. Every bidder received the
+        same keys at the same time, and they are on the ledger.</p>
+        <ul class="jump__list">
+          {% for name, key in public_keys.items %}
+            <li><strong>{{ name }}</strong> <span class="hash">{{ key|hash_short }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="tiny">Two custodians hold the private halves. Neither can open a bid alone, and both the
+        sealing and the opening are recorded events.</p>
+      </div>
+    {% else %}
+      <div class="callout callout--warn">
+        <span class="callout__title">No sealing key recorded for this tender</span>
+        <p>Without published sealing keys a sealed bid cannot be verified end to end, so the platform does
+        not pretend otherwise. The Bureau must publish the keys before bids are accepted under seal.</p>
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Before you submit</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/{{ t.ocid }}/">The full tender record</a></li>
+        <li><a href="/tenders/{{ t.ocid }}/#documents">Documents, with digests</a></li>
+        <li><a href="/tenders/{{ t.ocid }}/#questions">Clarifications asked by others</a></li>
+        <li><a href="/tenders/help/#bid">What to do if you have no computer</a></li>
+      </ul>
+    </div>
+  </aside>
 </div>
 {% endblock %}

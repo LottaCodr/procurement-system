@@ -1,117 +1,126 @@
-"""Whistleblower encrypted intake page view.
+"""Whistleblower intake — anonymous reports of procurement corruption.
 
-Design requirement: "intake with anonymous handle + tracked case ID"
-The whistleblower submits encrypted reports using a one-time key.
+Three deliberate properties, and one honest limitation that the page states in
+plain words:
+
+* **No account, no login, no CAPTCHA.** Requiring an account to report the
+  misuse of public money is a filter that only keeps honest people out.
+* **Encrypted before it is written down.** The body is encrypted with a
+  Fernet key derived from the deployment secret and stored as ciphertext with a
+  SHA-256 of the ciphertext for integrity. Investigators decrypt with a key that
+  lives outside the web role.
+* **A case reference the reporter keeps.** `WB-XXXXXXXX`, with a status lookup
+  so a reporter can see movement without identifying themselves.
+* **The limitation, stated plainly:** this is not a Tor-grade anonymous
+  channel. The submission carries ordinary server logs. Anyone whose safety
+  depends on untraceability should use the physical drop box at the Bureau, and
+  the page says so rather than implying a guarantee it cannot make.
 """
-import secrets
-import hashlib
+from __future__ import annotations
+
 import logging
-from django.shortcuts import render, redirect
+
+from django.db.models import Q
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_protect
-from workflow.models_whistleblower import WhistleblowerCase
+from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_http_methods
+
+from procurement.crypto import encrypt_report_body
+from workflow.models import WhistleblowerReport
 
 logger = logging.getLogger(__name__)
 
+MIN_BODY = 40
+MAX_BODY = 8000
 
-@require_http_methods(["GET"])
+
+@require_http_methods(["GET", "POST"])
 def whistleblower_intake(request):
-    """Display the whistleblower intake form.
-    
-    This page allows anonymous submission of corruption reports.
-    The form uses client-side encryption with a one-time key.
+    """The intake form. Renders its own errors; never loses a typed report."""
+    context = {"body": "", "tender_ocid": "", "contact": "", "errors": {}, "case": None}
+
+    if request.method == "POST":
+        body = (request.POST.get("body") or "").strip()
+        tender_ocid = (request.POST.get("tender_ocid") or "").strip()
+        contact = (request.POST.get("contact") or "").strip()
+        context.update({"body": body, "tender_ocid": tender_ocid, "contact": contact})
+
+        errors = {}
+        if not body:
+            errors["body"] = "Enter what you want to report."
+        elif len(body) < MIN_BODY:
+            errors["body"] = f"Add a little more detail — at least {MIN_BODY} characters."
+        elif len(body) > MAX_BODY:
+            errors["body"] = f"Shorten the report to {MAX_BODY} characters or fewer."
+
+        if not errors:
+            report = WhistleblowerReport.objects.create(
+                body_ciphertext=encrypt_report_body(body),
+                contact_hash=_contact_hash(contact) if contact else "",
+                tender_ocid=tender_ocid[:64],
+            )
+            # Log the reference only: the body is never written to a log line.
+            logger.info("whistleblower report received: %s", report.ref)
+            context.update({"case": report, "body": "", "tender_ocid": "", "contact": ""})
+        else:
+            context["errors"] = errors
+
+    return render(request, "whistleblower_intake.html", context)
+
+
+def _contact_hash(contact: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(contact.strip().lower().encode("utf-8")).hexdigest()[:64]
+
+
+@require_GET
+def whistleblower_status(request, reference: str):
+    """Status lookup by case reference.
+
+    A browser gets a page that states the status; `?format=json` gets the same
+    facts as JSON for the API surface. Either way the response carries the
+    status and nothing else — never the report body, never the contact hash.
     """
-    # Generate a one-time key for this session
-    one_time_key = secrets.token_urlsafe(32)
-    request.session['whistleblower_key'] = one_time_key
-    
-    context = {
-        'one_time_key': one_time_key,
-        'page_title': 'Report Corruption Anonymously',
+    report = (
+        WhistleblowerReport.objects.filter(ref=reference.upper())
+        .only("ref", "status", "submitted_at")
+        .first()
+    )
+    payload = {
+        "reference": reference.upper(),
+        "found": report is not None,
+        "status": report.get_status_display() if report else None,
+        "received_at": report.submitted_at.isoformat() if report else None,
+        "checked_at": timezone.now().isoformat(),
     }
-    return render(request, 'whistleblower_intake.html', context)
+    if request.GET.get("format") == "json" or request.headers.get("Accept", "").startswith("application/json"):
+        if report is None:
+            return JsonResponse({"error": "not_found", "detail": "No case with that reference."}, status=404)
+        return JsonResponse(payload)
+
+    return render(
+        request,
+        "whistleblower_status.html",
+        {
+            "report": report,
+            "reference": reference.upper(),
+            "checked_at": timezone.now(),
+        },
+        status=200 if report else 404,
+    )
 
 
-@require_http_methods(["POST"])
-@csrf_protect
-def whistleblower_submit(request):
-    """Submit an encrypted whistleblower report.
-    
-    The report is encrypted client-side before submission.
-    We store only the encrypted content and a case ID.
+@require_GET
+def whistleblower_status_lookup(request):
+    """Turn `?ref=WB-…` into the canonical, permanent status URL.
+
+    The form needs somewhere to post to that does not already contain a
+    reference, and a redirect keeps one canonical URL per case — so a reference
+    forwarded in a chat resolves for whoever opens it.
     """
-    try:
-        # Validate the one-time key
-        session_key = request.session.get('whistleblower_key')
-        submitted_key = request.POST.get('encryption_key')
-        
-        if not session_key or session_key != submitted_key:
-            return JsonResponse({
-                'success': False,
-                'error': 'Invalid or expired submission key'
-            }, status=400)
-        
-        # Clear the key from session (one-time use)
-        del request.session['whistleblower_key']
-        
-        # Get encrypted content
-        encrypted_content = request.POST.get('encrypted_content')
-        if not encrypted_content:
-            return JsonResponse({
-                'success': False,
-                'error': 'No encrypted content provided'
-            }, status=400)
-        
-        # Generate case ID
-        case_id = f"WB-{secrets.token_hex(4).upper()}"
-        
-        # Compute hash of encrypted content for integrity verification
-        content_hash = hashlib.sha256(encrypted_content.encode()).hexdigest()
-        
-        # Store the case
-        case = WhistleblowerCase.objects.create(
-            case_id=case_id,
-            encrypted_content=encrypted_content,
-            content_hash=content_hash,
-            status='RECEIVED',
-        )
-        
-        logger.info(f"Whistleblower case created: {case_id}")
-        
-        # Return case ID and verification hash
-        return JsonResponse({
-            'success': True,
-            'case_id': case_id,
-            'verification_hash': content_hash[:16],
-            'message': 'Your report has been submitted securely. Save your case ID for reference.',
-        })
-        
-    except Exception as e:
-        logger.error(f"Whistleblower submission failed: {e}")
-        return JsonResponse({
-            'success': False,
-            'error': 'Submission failed. Please try again.'
-        }, status=500)
-
-
-@require_http_methods(["GET"])
-def whistleblower_status(request, case_id):
-    """Check the status of a whistleblower case.
-    
-    Only returns status information, never the encrypted content.
-    """
-    try:
-        case = WhistleblowerCase.objects.get(case_id=case_id)
-        
-        return JsonResponse({
-            'case_id': case.case_id,
-            'status': case.status,
-            'received_at': case.created_at.isoformat(),
-            'last_updated': case.updated_at.isoformat(),
-        })
-        
-    except WhistleblowerCase.DoesNotExist:
-        return JsonResponse({
-            'error': 'Case not found'
-        }, status=404)
+    ref = (request.GET.get("ref") or "").strip().upper()
+    if not ref:
+        return render(request, "whistleblower_status.html", {"reference": "", "checked_at": timezone.now()})
+    return redirect("whistleblower-status", reference=ref)

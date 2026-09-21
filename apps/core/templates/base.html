@@ -1,40 +1,144 @@
-<!doctype html>
-<html lang="en">
+{% load core_tags %}<!doctype html>
+<html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block title %}{{ PLATFORM_NAME }}{% endblock %}</title>
-<meta name="description" content="Open register of Taraba State public procurement: tenders, awards, contracts and payment certifications. No login, no key, no quota.">
-<link rel="stylesheet" href="/stylesheet">
+<meta name="description" content="{% block description %}Open register of Taraba State public procurement: every tender, award, contract and payment certification. No account, no key, no quota.{% endblock %}">
+
+{% comment %} Canonical URLs matter here: a filtered register is a view of the same records,
+   not a new page, and duplicate URLs split the search authority of a public record. {% endcomment %}
+<link rel="canonical" href="{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
+
+{# A single content-addressed stylesheet. No CDN, no webfonts, no runtime CSS-in-JS. #}
+<link rel="stylesheet" href="{{ STYLESHEET }}">
+<link rel="alternate" type="application/rss+xml" title="New tenders" href="/tenders/feed/tenders/">
+<link rel="alternate" type="application/rss+xml" title="New awards" href="/tenders/feed/awards/">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#074026" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a1a12" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+
+{% comment %} Link previews: in Nigeria a tender link travels by WhatsApp, so the preview
+   card is part of the interface, not a marketing nicety. {% endcomment %}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{ PLATFORM_NAME }}">
+<meta property="og:title" content="{% block og_title %}{{ PLATFORM_NAME }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}Every tender, award, contract variation and payment certification in Taraba State — public, downloadable, and protected by an append-only ledger.{% endblock %}">
+<meta name="twitter:card" content="summary">
+{% block head_extra %}{% endblock %}
 </head>
 <body>
-<a class="skip" href="#main">Skip to main content</a>
+<a class="skip-link" href="#main">Skip to main content</a>
+
 <header class="masthead">
-  <div class="wrap masthead-in">
-    <span class="seal" aria-hidden="true">TS</span>
-    <div><strong>{{ STATE_NAME }}</strong><div class="sub">Bureau of Public Procurement - {{ PLATFORM_NAME }}</div></div>
-    <nav aria-label="Main">
-      <a href="/tenders/">Tenders</a>
-      <a href="/tenders/awards/">Awards</a>
-      <a href="/tenders/contracts/">Contracts</a>
-      <a href="/tenders/suppliers/">Suppliers</a>
-      <a href="/tenders/ratings/">Ratings</a>
-      <a href="/tenders/payments/">Payments</a>
-      <a href="/tenders/open-data/">API</a>
-      <a href="/tenders/status/">Status</a>
-      <a class="btn" href="/tenders/?open=1">Find work</a>
-    </nav>
+  <div class="wrap masthead__top">
+    <a class="brand" href="/tenders/">
+      <span class="brand__mark" aria-hidden="true">TAR</span>
+      <span class="brand__text">
+        <b>{{ STATE_NAME }} e-Procurement</b>
+        <span>Bureau of Public Procurement, Jalingo</span>
+      </span>
+    </a>
+    <div class="masthead__utils">
+      <form class="search" method="get" action="/tenders/" role="search">
+        <label for="site-search">Search the register</label>
+        <input id="site-search" type="search" name="q" value="{{ filters.q|default:'' }}"
+               placeholder="reference, title, supplier or agency" autocomplete="off"
+               aria-describedby="search-hint">
+        <input type="hidden" name="sort" value="closing">
+        <button class="btn btn--small" type="submit">Search</button>
+      </form>
+      <span id="search-hint" class="visually-hidden">Results appear on the tender register page.</span>
+    </div>
   </div>
 </header>
-<main id="main" class="wrap">
-{% block content %}{% endblock %}
+
+{% comment %} A <details> disclosure, not a JavaScript hamburger: the whole site stays
+   keyboard-operable and usable with scripting switched off. {% endcomment %}
+<details class="nav" id="site-nav">
+  <summary class="nav__toggle">Menu — {{ STATE_NAME }} procurement</summary>
+  <nav aria-label="Primary">
+    <ul class="nav__list">
+      <li><a href="/tenders/" {% nav_current "/tenders/" exact=True %}>Tender register</a></li>
+      <li><a href="/tenders/awards/" {% nav_current "/tenders/awards/" %}>Awards</a></li>
+      <li><a href="/tenders/contracts/" {% nav_current "/tenders/contracts/" %}>Contracts</a></li>
+      <li><a href="/tenders/suppliers/" {% nav_current "/tenders/suppliers/" %}>Suppliers</a></li>
+      <li><a href="/tenders/rules/" {% nav_current "/tenders/rules/" %}>Rules &amp; thresholds</a></li>
+      <li><a href="/tenders/indicators/" {% nav_current "/tenders/indicators/" %}>Red-flag indicators</a></li>
+      <li><a href="/tenders/mdas/" {% nav_current "/tenders/mdas/" %}>MDAs</a></li>
+      <li><a href="/tenders/open-data/" {% nav_current "/tenders/open-data/" %}>Open data</a></li>
+      <li><a href="/tenders/help/" {% nav_current "/tenders/help/" %}>Help</a></li>
+    </ul>
+  </nav>
+</details>
+
+{% block notice_strip %}{% endblock %}
+
+<main id="main" tabindex="-1">
+  <div class="wrap">
+    {% block content %}{% endblock %}
+  </div>
 </main>
-<footer class="wrap foot">
-  <p><strong>Published data, not claims.</strong> Every figure on this site is computed by
-  <code>/api/v1/stats</code> when the page renders. If a number here does not match the register, the register is right.</p>
-  <p>Bureau of Public Procurement, Jalingo, Taraba State - <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a> -
-  <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a> - {{ SUPPORT_HOURS }}</p>
-  <p class="tiny">Data licence CC BY 4.0 - <a href="/redirects">permanent URL map</a> -
-  <a href="/api/v1/policy/access">access policy</a> - <a href="/tenders/indicators/">red-flag definitions</a> - (c) {{ YEAR }} {{ STATE_NAME }} Government</p>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div>
+        <h2>Use the register</h2>
+        <ul>
+          <li><a href="/tenders/?open=1">Tenders open for bids</a></li>
+          <li><a href="/tenders/awards/">Award register</a></li>
+          <li><a href="/tenders/suppliers/">Registered suppliers</a></li>
+          <li><a href="/tenders/rules/">Which method applies to my value?</a></li>
+          <li><a href="/tenders/help/">Help and contacts</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Hold us to it</h2>
+        <ul>
+          <li><a href="/tenders/indicators/">Red-flag indicators and how often they fire</a></li>
+          <li><a href="/tenders/status/">Service and ledger status</a></li>
+          <li><a href="/tenders/whistleblower/">Report corruption anonymously</a></li>
+          <li><a href="/tenders/rules/?fy=">Published threshold rules</a></li>
+          <li><a href="/redirects">Permanent URL map</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Take the data</h2>
+        <ul>
+          <li><a href="/tenders/open-data/">Open data &amp; API (no key needed)</a></li>
+          <li><a href="/api/v1/bulk?year={{ YEAR }}">Download {{ YEAR }} as a zip</a></li>
+          <li><a href="/tenders/export.csv">Export the register as CSV</a></li>
+          <li><a href="/api/v1/releases">Continuous OCDS release feed</a></li>
+          <li><a href="/api/v1/schema">OpenAPI 3.1 schema</a></li>
+        </ul>
+      </div>
+      <div>
+        {# Help appears in the same place on every page: SC 3.2.6. #}
+        <h2>Contact the Bureau</h2>
+        <ul>
+          <li>Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></li>
+          <li>Email <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></li>
+          <li>{{ SUPPORT_HOURS }}</li>
+          <li>Bureau of Public Procurement, Jalingo, {{ STATE_NAME }}</li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot__legal">
+      <p><strong>Published data, not claims.</strong> Every figure on this site is computed from the
+      register when the page is rendered — nothing is typed in by hand. If a number here disagrees with
+      <a href="/api/v1/stats">/api/v1/stats</a>, the API is right and the page is the bug.</p>
+      <p>Data licensed <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> ·
+      <a href="/tenders/help/">Accessibility, language and contact</a> ·
+      <a href="/api/v1/policy/access">Access policy</a> ·
+      © {{ YEAR }} {{ STATE_NAME }} Government</p>
+    </div>
+  </div>
 </footer>
-</body></html>
+
+{% comment %} Progressive enhancement, served from our own origin so the CSP stays at
+   `script-src 'self'`. Nothing on the site depends on it. {% endcomment %}
+<script src="/static/js/app.js" defer></script>
+</body>
+</html>

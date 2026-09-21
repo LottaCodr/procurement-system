@@ -1,72 +1,221 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}{{ PLATFORM_NAME }} — tenders, awards and contracts, open by default{% endblock %}
+{% block title %}{{ STATE_NAME }} public procurement, in the open — {{ PLATFORM_NAME }}{% endblock %}
+{% block description %}Every tender, award, contract and payment certification of {{ STATE_NAME }}: readable without an account, downloadable without a key, and protected by an append-only ledger the Bureau itself cannot quietly edit.{% endblock %}
+
 {% block content %}
-<h1>Taraba State public procurement, in the open</h1>
-<p class="lead">Every tender the state publishes, every award it makes, every contract variation and every
-payment certification &mdash; readable without an account, downloadable without a key, and
-protected by an append-only ledger the Bureau itself cannot silently edit.</p>
+<header class="page-head page-head--ruled">
+  <h1>{{ STATE_NAME }} public spending, in the open</h1>
+  <p class="lede">Every tender advertised, every award made, every contract variation and every payment
+  certified by {{ STATE_NAME }} — published here as it happens. No account, no API key, nothing to request
+  permission for.</p>
+  <div class="cluster">
+    <a class="btn" href="/tenders/?open=1&amp;sort=closing">Tenders open now{% if m.open_tenders %} ({{ m.open_tenders }}){% endif %}</a>
+    <a class="btn btn--secondary" href="/tenders/awards/">Who won what</a>
+    <a class="btn btn--secondary" href="/tenders/open-data/">Download the data</a>
+  </div>
+</header>
 
-<div class="grid c4">
-  <div class="kpi"><b>{{ m.open_tenders }}</b><span>tenders open right now</span></div>
-  <div class="kpi"><b>{{ m.published_this_year }}</b><span>tenders published this year</span></div>
-  <div class="kpi"><b>{{ m.awards_published }}</b><span>awards published</span></div>
-  <div class="kpi"><b>{{ m.total_award_value|naira }}</b><span>total award value</span></div>
-</div>
-<p class="tiny">Also live: {{ m.suppliers_verified }}/{{ m.suppliers_total }} suppliers with verified CAC identity &middot;
-{{ m.mdas_onboarding }}/{{ m.mdas_total }} MDAs transacting on the platform &middot;
-{{ m.ledger_events }} ledger events, chain {% if m.chain_valid %}<span class="tag ok">valid</span>{% else %}<span class="tag flag">{{ m.chain_detail }}</span>{% endif %}
-&middot; figures computed at {{ m.generated_at|shortdate }}, not typed in.</p>
+{% comment %} Live figures. Each one links to the page that lists the records behind it, and
+   the whole block carries the time it was computed: a dashboard number with no
+   timestamp is a claim, not a measurement. {% endcomment %}
+<section aria-labelledby="live-figures">
+  <div class="spread">
+    <h2 id="live-figures">The register right now</h2>
+    <p class="tiny">Computed from the live database at {{ m.generated_at|datetime_wat }} ·
+      <a href="/api/v1/stats">inspect the JSON</a></p>
+  </div>
+  <div class="grid grid--kpi">
+    <a class="kpi kpi--link" href="/tenders/?open=1&amp;sort=closing">
+      <span class="kpi__value">{{ m.open_tenders }}</span>
+      <span class="kpi__label">tenders open for bids</span>
+      <span class="kpi__meta">See deadlines →</span>
+    </a>
+    <a class="kpi kpi--link" href="/tenders/awards/">
+      <span class="kpi__value">{{ m.awards_published }}</span>
+      <span class="kpi__label">awards published</span>
+      <span class="kpi__meta">{{ m.total_award_value|naira }} awarded in total →</span>
+    </a>
+    <a class="kpi kpi--link" href="/tenders/contracts/">
+      <span class="kpi__value">{{ m.contracts_signed }}</span>
+      <span class="kpi__label">contracts signed</span>
+      <span class="kpi__meta">with variations and payments →</span>
+    </a>
+    <a class="kpi kpi--link" href="/tenders/suppliers/">
+      <span class="kpi__value">{{ m.suppliers_verified }}<span class="tiny">/{{ m.suppliers_total }}</span></span>
+      <span class="kpi__label">suppliers with a verified CAC identity</span>
+      <span class="kpi__meta">Check a supplier →</span>
+    </a>
+  </div>
+</section>
 
-{% if upcoming %}
-<h2>Closing soonest</h2>
-<table>
-  <thead><tr><th>Reference</th><th>Tender</th><th>Agency</th><th class="num">Estimate</th><th>Method</th><th>Closes</th></tr></thead>
-  <tbody>
-  {% for t in upcoming %}
-    <tr>
-      <td><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></td>
-      <td>{{ t.title }}{% if t.red_flag_codes %} {% for f in t.red_flag_codes %}<span class="tag flag">{{ f }}</span>{% endfor %}{% endif %}</td>
-      <td class="muted">{{ t.agency.code }}</td>
-      <td class="num">{{ t.est_value|naira }}</td>
-      <td><span class="tag">{{ t.method }}</span></td>
-      <td>{{ t.submission_close_at|deadline }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<div class="empty"><strong>No tenders are open right now.</strong><br>
-This page says so plainly instead of showing a placeholder.
-<a href="/tenders/?open=1">Check the register</a> or <a href="/tenders/awards/">read past awards</a>.</div>
-{% endif %}
+{% comment %} Ledger integrity: published as a fact anyone can re-compute, with the command
+   to do it. Trust that requires trusting the operator is not trust. {% endcomment %}
+<section class="card card--flush" aria-labelledby="integrity">
+  <div class="card__body">
+    <div class="spread">
+      <h2 id="integrity">The record cannot be quietly edited</h2>
+      {% if m.chain_valid %}
+        <span class="tag tag--open">chain verified: {{ m.chain_events }} events</span>
+      {% else %}
+        <span class="tag tag--flag">{{ m.chain_detail }}</span>
+      {% endif %}
+    </div>
+    <p>Every action on this platform — publishing a tender, opening bids, signing a contract,
+    certifying a payment — is written to an append-only ledger, each entry chained to the one before it
+    by SHA-256. Corrections are new entries, never edits. The head hash is published so you can check
+    we have not rewritten anything since you last looked.</p>
+    <dl class="kv">
+      <dt>Ledger head</dt>
+      <dd><span class="hash" id="head-hash">{{ m.ledger_head_hash|default:"—" }}</span>
+        <button class="btn btn--small btn--secondary" type="button" hidden
+                data-copy-target="#head-hash" data-copy-label="Ledger head hash">Copy</button></dd>
+      <dt>Verify it yourself</dt>
+      <dd><code>python manage.py verify_ledger</code> — or compare the head hash against
+        <a href="/api/v1/ledger/head">the public endpoint</a>.
+        <a href="/tenders/status/">Full service status</a>.</dd>
+    </dl>
+  </div>
+</section>
+
+{# The single question the portal exists to answer, answered on the landing page. #}
+<section aria-labelledby="closing">
+  <h2 id="closing">Closing soonest</h2>
+  {% if upcoming %}
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Tenders closing soonest, scrollable">
+      <table class="data data--sticky-first">
+        <caption>Tenders currently open for bids, ordered by the nearest deadline. Times are West Africa Time (UTC+1).</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tender</th>
+            <th scope="col" class="hide-xs">Agency</th>
+            <th scope="col" class="num">Estimate</th>
+            <th scope="col" class="hide-xs">Method</th>
+            <th scope="col">Deadline</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for t in upcoming %}
+          <tr>
+            <th scope="row">
+              <a href="/tenders/{{ t.ocid }}/">{{ t.title }}</a>
+              <span class="tiny">{{ t.ocid }}{% if t.reference %} · {{ t.reference }}{% endif %}</span>
+            </th>
+            <td class="hide-xs">{{ t.agency.code }}</td>
+            <td class="num">{{ t.est_value|naira }}</td>
+            <td class="hide-xs">{{ t.get_method_display }}</td>
+            <td>{{ t.submission_close_at|deadline }}<span class="visually-hidden"> for {{ t.ocid }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">
+      <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+      <span><a href="/tenders/?open=1&amp;sort=closing">All {{ m.open_tenders }} open tenders</a> ·
+      <a href="/tenders/feed/tenders/">RSS alert</a></span>
+    </p>
+  {% else %}
+    {# An empty register says so plainly. A placeholder would be the lie. #}
+    <div class="empty">
+      <h3>No tender is open for bids at this moment</h3>
+      <p>That is a real answer, not a broken page. The register shows every process the state has
+      advertised — right now, none has an open submission window.</p>
+      <div class="cluster">
+        <a class="btn btn--secondary" href="/tenders/">See the whole register</a>
+        <a class="btn btn--secondary" href="/tenders/feed/tenders/">Get alerted by RSS</a>
+      </div>
+    </div>
+  {% endif %}
+</section>
 
 {% if recent_awards %}
-<h2>Recent awards</h2>
-<table>
-  <thead><tr><th>Published</th><th>Tender</th><th>Won by</th><th class="num">Award</th><th class="num">vs estimate</th></tr></thead>
-  <tbody>
-  {% for a in recent_awards %}
-    <tr>
-      <td class="muted">{{ a.published_at|shortdate }}</td>
-      <td><a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a><div class="tiny">{{ a.tender.ocid }} &middot; {{ a.tender.agency.code }}</div></td>
-      <td>{{ a.bid.supplier.legal_name }}<div class="tiny">{{ a.bid.supplier.rc_number }}</div></td>
-      <td class="num">{{ a.amount|naira }}</td>
-      <td class="num">{% widthratio a.amount a.tender.est_value 100 %}%</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<section aria-labelledby="awards">
+  <div class="spread">
+    <h2 id="awards">Latest awards</h2>
+    <p class="tiny"><a href="/tenders/awards/">Full award register</a></p>
+  </div>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Latest awards, scrollable">
+    <table class="data data--sticky-first">
+      <caption>Awards published most recently, with the winning bid measured against the published estimate.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Awarded</th>
+          <th scope="col">Tender</th>
+          <th scope="col">Won by</th>
+          <th scope="col" class="num">Award</th>
+          <th scope="col" class="num hide-xs">vs estimate</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in recent_awards %}
+        <tr>
+          <td>{{ a.published_at|shortdate }}</td>
+          <th scope="row">
+            <a href="/tenders/{{ a.tender.ocid }}/">{{ a.tender.title }}</a>
+            <span class="tiny">{{ a.tender.ocid }} · {{ a.tender.agency.code }}</span>
+          </th>
+          <td>{{ a.bid.supplier.legal_name }}</td>
+          <td class="num">{{ a.amount|naira }}</td>
+          <td class="num hide-xs">{% if a.tender.est_value %}{% widthratio a.amount a.tender.est_value 100 %}%{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+    <span><a href="/tenders/feed/awards/">Award RSS feed</a></span>
+  </p>
+</section>
 {% endif %}
 
-<div class="grid c4">
-  <div class="card"><h3>For contractors</h3>
-    <p class="tiny">Register once with RC and TIN. Upload certificates with their expiry dates; we re-verify annually and suspend on expiry, so a lapsed tax clearance cannot bid.</p>
-    <p><a href="/tenders/?open=1">Find tenders</a></p></div>
-  <div class="card"><h3>For the public</h3>
-    <p class="tiny">No account, no API key, no permission. Download a whole year of data, or query a single process down to its ledger events.</p>
-    <p><a href="/tenders/open-data/">Open data &amp; API</a></p></div>
-  <div class="card"><h3>For oversight</h3>
-    <p class="tiny">Twelve collusion indicators run on every tender and their definitions are published. If a flag appears on your process, so does the arithmetic behind it.</p>
-    <p><a href="/tenders/indicators/">Red-flag definitions</a></p></div>
-</div>
+<section aria-labelledby="start-here">
+  <h2 id="start-here">Start here</h2>
+  <div class="grid grid--2">
+    <article class="card">
+      <h3>I want to bid for government work</h3>
+      <p>Register once with your RC number and TIN, keep your certificates current, and bid from a phone.
+      Nothing is submitted on paper and nothing needs a middleman.</p>
+      <ul>
+        <li><a href="/tenders/?open=1&amp;sort=closing">Tenders open for bids</a></li>
+        <li><a href="/tenders/register/">Register as a supplier</a></li>
+        <li><a href="/tenders/rules/">Which method applies to my value?</a></li>
+        <li><a href="/tenders/agent-desk/">No smartphone or data? Get help in person</a></li>
+      </ul>
+    </article>
+    <article class="card">
+      <h3>I want to know who got public money</h3>
+      <p>Every award names the winning company, the amount, the reason for the decision and the person who
+      approved it. Contracts then show variations and every payment certified against them.</p>
+      <ul>
+        <li><a href="/tenders/awards/">Award register</a></li>
+        <li><a href="/tenders/contracts/">Contracts and variations</a></li>
+        <li><a href="/tenders/payments/">Payment certifications</a></li>
+        <li><a href="/tenders/mdas/">Spending by ministry, department and agency</a></li>
+      </ul>
+    </article>
+    <article class="card">
+      <h3>I think something is wrong with a procurement</h3>
+      <p>Red-flag indicators run automatically on every process, and their definitions are published —
+      including how often each one has fired. You can file an objection, request a debrief, or report
+      corruption without giving your name.</p>
+      <ul>
+        <li><a href="/tenders/indicators/">What the red flags mean</a></li>
+        <li><a href="/tenders/whistleblower/">Report corruption anonymously</a></li>
+        <li><a href="/tenders/help/#objection">How to challenge an award</a></li>
+      </ul>
+    </article>
+    <article class="card">
+      <h3>I want the data itself</h3>
+      <p>Open Contracting Data Standard 1.1 releases, a bulk zip per year, a CSV of any filtered view,
+      and an OpenAPI schema — all unauthenticated, all CC BY 4.0. The API is the source of truth for
+      every figure on this site.</p>
+      <ul>
+        <li><a href="/tenders/open-data/">Endpoints and examples</a></li>
+        <li><a href="/tenders/export.csv">Export the register as CSV</a></li>
+        <li><a href="/api/v1/bulk?year={{ YEAR }}">Download {{ YEAR }} (zip)</a></li>
+      </ul>
+    </article>
+  </div>
+</section>
 {% endblock %}

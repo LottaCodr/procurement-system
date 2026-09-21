@@ -1,0 +1,138 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Help, contacts and accessibility{% endblock %}
+{% block description %}How to bid, how to check an award, how to challenge a procurement decision, and how to reach the {{ STATE_NAME }} Bureau of Public Procurement.{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Help</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Help</h1>
+  <p class="lede">The five things people contact the Bureau about, answered in the order they ask them —
+  with a telephone number you can actually ring.</p>
+</header>
+
+<div class="grid grid--side">
+  <div>
+    <section id="bid" aria-labelledby="bid-h">
+      <h2 id="bid-h">I want to bid for a contract</h2>
+      <ol>
+        <li><strong>Register once.</strong> You need your CAC registration number and your TIN. Registration
+          is free and stays valid while your certificates do —
+          <a href="/tenders/register/">start here</a>.</li>
+        <li><strong>Keep your certificates current.</strong> Certificates carry expiry dates. A lapsed tax
+          clearance suspends bidding automatically, so a bidder cannot discover it at the last minute in a
+          submission room.</li>
+        <li><strong>Find the tender.</strong> Filter <a href="/tenders/?open=1&amp;sort=closing">everything
+          open for bids</a>, or subscribe to the <a href="/tenders/feed/tenders/">RSS feed</a>, or watch
+          the newspaper advertisement — all three carry the same notices.</li>
+        <li><strong>Read the pack before you price.</strong> The estimate is published, the criteria and
+          their weights are published, and every question any bidder asks is answered in public.</li>
+        <li><strong>Submit before the deadline.</strong> Deadlines are shown in West Africa Time (UTC+1) and
+          the platform refuses late submissions; “my network was slow” is not a ground for appeal, which is
+          why the platform is built for a phone on 2G.</li>
+      </ol>
+      {% if top_tenders %}
+        <h3>Open right now</h3>
+        <ul>
+          {% for t in top_tenders %}
+            <li><a href="/tenders/{{ t.ocid }}/">{{ t.title }}</a> — {{ t.agency.code }},
+              closes {{ t.submission_close_at|deadline }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+
+    <section id="check" aria-labelledby="check-h">
+      <h2 id="check-h">I want to check who won a contract</h2>
+      <ul>
+        <li><a href="/tenders/awards/">The award register</a> lists every award with the winning company,
+          the amount and the reason for the decision.</li>
+        <li><a href="/tenders/contracts/">Contracts</a> show variations and payment certifications after
+          signature.</li>
+        <li><a href="/tenders/suppliers/">The supplier register</a> shows whether a company is verified and
+          whether it has been debarred.</li>
+        <li>Every process page carries its complete ledger history, including who approved what and when.</li>
+      </ul>
+    </section>
+
+    <section id="objection" aria-labelledby="objection-h">
+      <h2 id="objection-h">I want to challenge a procurement decision</h2>
+      <p>There are three routes, and none of them requires a lawyer to start:</p>
+      <ul>
+        <li><strong>Ask for a debrief.</strong> A losing bidder can ask why they lost, and the answer is
+          published in the debrief log for that process.</li>
+        <li><strong>File an objection.</strong> Any bidder or member of the public can object to an award
+          inside the published objection window. Filing triggers a ten-day freeze of the procedure while an
+          independent panel — half of it nominated by civil society — reviews the decision.</li>
+        <li><strong>Report corruption.</strong> Anonymous reports are accepted at
+          <a href="/tenders/whistleblower/">the whistleblower page</a>, encrypted before storage, with a
+          case reference so you can check what happened without identifying yourself.</li>
+      </ul>
+      <p class="tiny">The objection window is printed on the award itself. If it has closed, the freeze
+      route is closed with it — that is a real limit, stated rather than hidden.</p>
+    </section>
+
+    <section id="data" aria-labelledby="data-h">
+      <h2 id="data-h">I want the data, not the website</h2>
+      <p>Everything here is available as OCDS releases, JSON, CSV and a yearly zip —
+      <a href="/tenders/open-data/">see the endpoints</a>. There is no key, no quota and no approval step.
+      If you are a journalist and would rather have a spreadsheet than an API client,
+      <a href="/tenders/export.csv">export the register as CSV</a>.</p>
+    </section>
+
+    <section id="accessibility" aria-labelledby="a11y-h">
+      <h2 id="a11y-h">Accessibility and language</h2>
+      <p>This site is built to be usable on the oldest phone and the slowest connection in the state,
+      because that is where most of its users are. Concretely:</p>
+      <ul>
+        <li>Every page works with JavaScript switched off, and no page depends on a mouse.</li>
+        <li>Text meets WCAG 2.2 AA contrast, focus is always visible, and no status is signalled by colour
+          alone — the word is always there beside the colour.</li>
+        <li>Touch targets are at least 44 pixels, and pages are readable at 320 pixels wide without
+          horizontal scrolling of anything except wide data tables.</li>
+        <li>Every table has a caption and proper headers, so a screen reader announces the right column
+          for the right value.</li>
+        <li>Pages print: navigation and filters disappear, and links print their destinations.</li>
+        <li>Language: English and Hausa are supported in the registration and bidding flows. If you need
+          another language, the Bureau's help desk can assist by telephone.</li>
+      </ul>
+      <p class="tiny">If something here does not work for you, that is a defect and we want it:
+      <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a> or
+      <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>.</p>
+    </section>
+
+    <section id="novice" aria-labelledby="novice-h">
+      <h2 id="novice-h">I have no smartphone, no data, or no computer</h2>
+      <p>You are not excluded. The Bureau runs assisted bidding desks so that a contractor without a
+      smartphone can still bid without paying an agent to do it for them:
+      <a href="/tenders/agent-desk/">find the desk nearest you</a>. Everything those desks do is recorded
+      on the same ledger, under the same rules — the desk is a convenience, not a back channel.</p>
+    </section>
+  </div>
+
+  <aside aria-label="Contact the Bureau">
+    <div class="card">
+      <h2>Contact the Bureau</h2>
+      <dl class="kv kv--stack">
+        <dt>Telephone</dt><dd><a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></dd>
+        <dt>Email</dt><dd><a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></dd>
+        <dt>Opening hours</dt><dd>{{ SUPPORT_HOURS }}</dd>
+        <dt>Address</dt><dd>Bureau of Public Procurement, Jalingo, {{ STATE_NAME }}</dd>
+      </dl>
+      <p class="tiny">If a page on this site is broken, say which page and what happened. Screenshots help
+      and cost you nothing.</p>
+    </div>
+    <div class="card">
+      <h2>Quick answers</h2>
+      <ul>
+        <li><a href="/tenders/rules/">Which method applies to my value?</a></li>
+        <li><a href="/tenders/indicators/">What the red flags mean</a></li>
+        <li><a href="/tenders/register/">Register as a supplier</a></li>
+        <li><a href="/tenders/open-data/">Get the data</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

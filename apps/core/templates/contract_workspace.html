@@ -1,201 +1,225 @@
-{% extends "base.html" %}
-{% block title %}Contract {{ c.reference }} — Implementation{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Delivery workspace — contract {{ c.reference }}{% endblock %}
+{% block description %}Post-award delivery record for contract {{ c.reference }}: milestones against the plan, guarantees and their expiry, payment plan, performance rating and the contract's ledger history.{% endblock %}
+
 {% block content %}
-<nav class="crumb">
-  <a href="/tenders/contracts/">Contracts</a> &rsaquo; {{ c.reference }}
-</nav>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/contracts/">Contracts</a></li>
+  <li><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></li>
+  <li><span aria-current="page">Delivery workspace</span></li>
+</ol></nav>
 
-<div class="card">
-  <h1>{{ c.reference }}</h1>
-  <div class="grid-2">
-    <div>
-      <dl>
-        <dt>Status</dt><dd><span class="badge">{{ c.get_status_display }}</span></dd>
-        <dt>Supplier</dt><dd><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></dd>
-        <dt>Agency</dt><dd>{{ c.award.tender.agency.name }}</dd>
-        <dt>OCID</dt><dd><a href="/tenders/{{ c.award.tender.ocid }}/">{{ c.award.tender.ocid }}</a></dd>
-        <dt>Value</dt><dd>₦{{ c.value|floatformat:2 }}</dd>
-        <dt>Signed</dt><dd>{{ c.signed_at|date:"d M Y" }}</dd>
-        <dt>Duration</dt><dd>{{ c.duration_days }} days</dd>
-        <dt>Advance</dt><dd>{{ c.advance_pct }}%</dd>
-        <dt>Performance guarantee</dt><dd>{{ c.perf_guarantee_pct }}%</dd>
-        <dt>Defects liability</dt><dd>{{ c.defect_days }} days</dd>
-      </dl>
-    </div>
-    <div>
-      {% if c.location %}<p><strong>Location:</strong> {{ c.location }}</p>{% endif %}
-      {% if c.deliverables %}<p><strong>Deliverables:</strong> {{ c.deliverables }}</p>{% endif %}
-
-      {% if variation_alarm %}
-      <div class="alert bad">
-        <strong>⚠ Variation alarm:</strong> Contract value has grown {{ total_variation_pct }}% beyond signed value.
-        Variations exceeding 10% trigger red-flag indicator T10.
-      </div>
-      {% endif %}
-
-      {% if expiring_guarantees %}
-      <div class="alert warn">
-        <strong>⚠ Expiring guarantees:</strong>
-        {% for g in expiring_guarantees %}
-        {{ g.get_kind_display }} ({{ g.reference }}) expires in {{ g.days_to_expiry }} days.
-        {% endfor %}
-      </div>
-      {% endif %}
-
-      {% if overdue_milestones %}
-      <div class="alert warn">
-        <strong>⚠ Overdue milestones:</strong>
-        {% for m in overdue_milestones %}
-        {{ m.title }} ({{ m.days_late }} days late){% if not forloop.last %}, {% endif %}
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ c.award.tender.agency.name }} · {{ c.award.bid.supplier.legal_name }}</p>
+  <h1>Delivery workspace</h1>
+  <p class="lede">Implementation for {{ c.reference }}: what has been delivered, what is late, what money
+  is certified against what deliverable, and which guarantee is about to lapse. Awards are the easy half of
+  procurement to publish; this is the half where delivery actually gets checked.</p>
+  <div class="cluster">
+    {{ c.status|status_tag }}
+    {% if variation_high %}<span class="tag tag--flag">variations above 10%</span>{% endif %}
+    {% if expiring_guarantees %}<span class="tag tag--warn">{{ expiring_guarantees|length }} guarantee{{ expiring_guarantees|length|pluralize }} expiring</span>{% endif %}
+    {% if overdue_milestones %}<span class="tag tag--flag">{{ overdue_milestones|length }} overdue milestone{{ overdue_milestones|length|pluralize }}</span>{% endif %}
   </div>
+</header>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ c.value|naira }}</span><span class="kpi__label">contract value</span>
+    <span class="kpi__meta">awarded at {{ c.award.amount|naira }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ total_variation_pct|pct }}</span><span class="kpi__label">cumulative variation</span>
+    <span class="kpi__meta">{{ variations|length }} variation{{ variations|length|pluralize }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ certifications|length }}</span><span class="kpi__label">payment certifications</span>
+    <span class="kpi__meta">{{ acceptances|length }} acceptance{{ acceptances|length|pluralize }} certificate{{ acceptances|length|pluralize }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ milestones|length }}</span><span class="kpi__label">milestones</span>
+    <span class="kpi__meta">{% if overdue_milestones %}{{ overdue_milestones|length }} past due{% else %}none past due{% endif %}</span></div>
 </div>
 
-{% if milestones %}
-<div class="card">
-  <h2>Milestones</h2>
-  <table class="data">
-    <thead><tr><th>#</th><th>Title</th><th>Planned</th><th>Actual</th><th>Value</th><th>Status</th><th>Days late</th></tr></thead>
-    <tbody>
-    {% for m in milestones %}
-    <tr>
-      <td>{{ m.seq }}</td>
-      <td>{{ m.title }}</td>
-      <td>{{ m.planned_date|date:"d M Y" }}</td>
-      <td>{{ m.actual_date|date:"d M Y"|default:"—" }}</td>
-      <td>₦{{ m.value|floatformat:2 }}</td>
-      <td><span class="badge {% if m.status == 'ACCEPTED' %}ok{% elif m.status == 'OVERDUE' %}bad{% endif %}">{{ m.get_status_display }}</span></td>
-      <td>{% if m.days_late > 0 %}{{ m.days_late }}{% else %}—{% endif %}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  <a href="/tenders/contracts/{{ c.reference }}/milestones/" class="btn">Detailed timeline</a>
-</div>
+{% if variation_alarm %}
+  <div class="callout callout--warn">
+    <span class="callout__title">This contract has grown by {{ total_variation_pct|pct }}</span>
+    <p>Variations above 10% of the signed value require a higher approving authority and are published as
+    a red flag. The itemised history is below — a lawful variation and a contract that quietly became a
+    different contract look identical until you read it.</p>
+  </div>
 {% endif %}
+
+<div class="grid grid--2">
+  {% if milestones %}
+  <section class="card" aria-labelledby="ws-milestones">
+    <h2 id="ws-milestones">Milestones against the plan</h2>
+    <ol class="steps">
+      {% for m in milestones %}
+        <li {% if m.status == "ACCEPTED" %}data-done="1"{% elif m.status == "IN_PROGRESS" or m.status == "DELIVERED" %}aria-current="step"{% endif %}>
+          <strong>{{ m.title }}</strong>
+          <span class="tiny">{{ m.get_status_display }} · planned {{ m.planned_date|shortdate }}
+            {% if m.actual_date %}· actual {{ m.actual_date|shortdate }}{% endif %}
+            {% if m.days_late %}· <span class="tag tag--flag">{{ m.days_late }} days late</span>{% endif %}
+            · {{ m.value|naira }}</span>
+          {% if m.inspection_note %}<span class="tiny">Inspection note: {{ m.inspection_note }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+    <p><a href="/tenders/contracts/{{ c.reference }}/milestones/">Full milestone register, with the evidence recorded against each one</a></p>
+  </section>
+  {% else %}
+  <section class="card" aria-labelledby="ws-milestones-empty">
+    <h2 id="ws-milestones-empty">No milestones recorded</h2>
+    <p>A contract of {{ c.value|naira }} with no delivery milestones gives the state no checkpoint before
+    the final payment. That gap is published here rather than left for a report to discover.</p>
+  </section>
+  {% endif %}
+
+  {% if schedule %}
+  <section class="card" aria-labelledby="ws-schedule">
+    <h2 id="ws-schedule">Payment plan</h2>
+    <p class="tiny">Payments are tied to milestones: treasury releases against a certified deliverable,
+    not against a calendar date.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Payment plan, scrollable">
+      <table class="data data--compact">
+        <caption>Planned payments against this contract.</caption>
+        <thead><tr><th scope="col">#</th><th scope="col">Item</th><th scope="col" class="num">Amount</th><th scope="col">Due</th><th scope="col">State</th></tr></thead>
+        <tbody>
+          {% for s in schedule %}
+            <tr>
+              <td>{{ s.seq }}</td>
+              <th scope="row">{{ s.description }}</th>
+              <td class="num">{{ s.amount|naira }}</td>
+              <td>{{ s.due_date|shortdate }}</td>
+              <td>{% if s.paid %}<span class="tag tag--open">paid {{ s.paid_at|shortdate }}</span>{% else %}<span class="tag tag--closed">not paid</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if guarantees %}
+  <section class="card" aria-labelledby="ws-guarantees">
+    <h2 id="ws-guarantees">Guarantees</h2>
+    <p class="tiny">Expiry dates are tracked because a guarantee that lapses while work is still running
+    leaves the state holding nothing but a promise.</p>
+    <ul>
+      {% for g in guarantees %}
+        <li>{{ g.get_kind_display }} — {{ g.amount|naira }} from {{ g.issuer }}
+          <span class="tiny">ref {{ g.reference }}, expires {{ g.expires_at|shortdate }}
+            ({{ g.days_to_expiry }} days)
+            {% if g.is_expired %}<span class="tag tag--flag">expired</span>
+            {% elif g.days_to_expiry <= 60 %}<span class="tag tag--warn">expiring</span>{% endif %}
+            {% if g.released_at %}· released {{ g.released_at|shortdate }}{% endif %}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if rating %}
+  <section class="card" aria-labelledby="ws-rating">
+    <h2 id="ws-rating">Performance rating</h2>
+    <p class="tiny">Computed from timeliness, inspected quality and variation growth. The formula is
+    published, so a supplier can dispute a grade with the arithmetic in hand.</p>
+    <dl class="kv kv--stack">
+      <dt>Grade</dt><dd><strong>{{ rating.get_grade_display }}</strong> ({{ rating.composite|floatformat:0 }}/100)</dd>
+      <dt>Timeliness</dt><dd>{{ rating.timeliness_score|floatformat:0 }} / 100</dd>
+      <dt>Quality</dt><dd>{{ rating.quality_score|floatformat:0 }} / 100</dd>
+      <dt>Variation control</dt><dd>{{ rating.variation_score|floatformat:0 }} / 100</dd>
+    </dl>
+    {% if rating.narrative %}<p>{{ rating.narrative }}</p>{% endif %}
+  </section>
+  {% endif %}
+</div>
+
+<section aria-labelledby="ws-acceptances">
+  <h2 id="ws-acceptances">Acceptances and payment certifications</h2>
+  {% if acceptances or certifications %}
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Acceptances and certifications, scrollable">
+      <table class="data">
+        <caption>Each payment certification names the acceptance certificate that authorised it. There is
+        no payment without an inspection.</caption>
+        <thead><tr><th scope="col">Certified</th><th scope="col">Reference</th><th scope="col" class="num">Amount</th>
+          <th scope="col">Certified by</th><th scope="col">Treasury reference</th></tr></thead>
+        <tbody>
+          {% for p in certifications %}
+            <tr>
+              <td>{{ p.certified_at|shortdate }}</td>
+              <th scope="row">{{ p.reference }}
+                <span class="tiny">acceptance {{ p.acceptance.ref }} — inspected {{ p.acceptance.inspected_at|shortdate }}</span></th>
+              <td class="num">{{ p.amount|naira }}</td>
+              <td>{{ p.certified_by.get_full_name|default:p.certified_by.username }}</td>
+              <td>{% if p.treasury_ref %}<code>{{ p.treasury_ref }}</code>{% else %}<span class="tag tag--warn">not released</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+          {% for a in acceptances %}
+            {% if not a.certification %}
+            <tr>
+              <td>{{ a.inspected_at|shortdate }}</td>
+              <th scope="row">{{ a.ref }} <span class="tiny">acceptance certificate, not yet certified for payment</span></th>
+              <td class="num">{{ a.value|naira }}</td>
+              <td>{{ a.certified_by.get_full_name|default:a.certified_by.username }}</td>
+              <td><span class="tag tag--closed">awaiting certification</span></td>
+            </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Nothing has been accepted or certified against this contract yet.</p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="ws-ledger">
+  <h2 id="ws-ledger">Contract events on the ledger</h2>
+  {% if events %}
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Contract events, scrollable">
+      <table class="data data--compact">
+        <caption>Every recorded event on this contract, newest first. Nothing here can be edited after
+        the fact; a correction is a new event.</caption>
+        <thead><tr><th scope="col">Date</th><th scope="col">Event</th><th scope="col">Note</th><th scope="col" class="num">Amount</th></tr></thead>
+        <tbody>
+        {% for e in events %}
+          <tr>
+            <td>{{ e.occurred_at|shortdate }}</td>
+            <th scope="row">{{ e.get_kind_display|default:e.kind }}</th>
+            <td>{{ e.note }}</td>
+            <td class="num">{% if e.amount %}{{ e.amount|naira }}{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">No contract events have been published yet.</p>
+  {% endif %}
+</section>
 
 {% if variations %}
-<div class="card">
-  <h2>Variations</h2>
-  <p class="muted">Total variation: {{ total_variation_pct }}% of signed value. <a href="/tenders/contracts/{{ c.reference }}/variations/">View all variations</a>.</p>
-  <table class="data">
-    <thead><tr><th>Title</th><th>Amount</th><th>%</th><th>Time</th><th>Status</th><th>Alarm</th></tr></thead>
-    <tbody>
-    {% for v in variations %}
-    <tr>
-      <td>{{ v.title }}</td>
-      <td>₦{{ v.amount_change|floatformat:2 }}</td>
-      <td>{{ v.pct_of_contract }}%</td>
-      <td>{% if v.time_change_days %}{{ v.time_change_days }}d{% else %}—{% endif %}</td>
-      <td><span class="badge">{{ v.get_status_display }}</span></td>
-      <td>{% if v.alarm_triggered %}<span class="badge bad">⚠ >10%</span>{% endif %}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if guarantees %}
-<div class="card">
-  <h2>Guarantees</h2>
-  <table class="data">
-    <thead><tr><th>Type</th><th>Issuer</th><th>Reference</th><th>Amount</th><th>Expires</th><th>Status</th></tr></thead>
-    <tbody>
-    {% for g in guarantees %}
-    <tr>
-      <td>{{ g.get_kind_display }}</td>
-      <td>{{ g.issuer }}</td>
-      <td>{{ g.reference }}</td>
-      <td>₦{{ g.amount|floatformat:2 }}</td>
-      <td>{{ g.expires_at|date:"d M Y" }} ({{ g.days_to_expiry }}d)</td>
-      <td>{% if g.released_at %}<span class="badge">Released</span>{% elif g.is_expired %}<span class="badge bad">Expired</span>{% else %}<span class="badge ok">Valid</span>{% endif %}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if acceptances %}
-<div class="card">
-  <h2>Acceptance certificates (CRAC)</h2>
-  <table class="data">
-    <thead><tr><th>Ref</th><th>Value</th><th>Certified by</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for a in acceptances %}
-    <tr>
-      <td>{{ a.ref }}</td>
-      <td>₦{{ a.value|floatformat:2 }}</td>
-      <td>{{ a.certified_by.get_full_name|default:a.certified_by.username }}</td>
-      <td>{{ a.inspected_at|date:"d M Y H:i" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if certifications %}
-<div class="card">
-  <h2>Payment certifications</h2>
-  <table class="data">
-    <thead><tr><th>Reference</th><th>Amount</th><th>Certified by</th><th>Treasury ref</th><th>Date</th></tr></thead>
-    <tbody>
-    {% for p in certifications %}
-    <tr>
-      <td>{{ p.reference }}</td>
-      <td>₦{{ p.amount|floatformat:2 }}</td>
-      <td>{{ p.certified_by.get_full_name|default:p.certified_by.username }}</td>
-      <td>{{ p.treasury_ref|default:"—" }}</td>
-      <td>{{ p.certified_at|date:"d M Y H:i" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if rating %}
-<div class="card">
-  <h2>Performance rating</h2>
-  <div class="grid-2">
-    <div>
-      <p class="grade-display"><span class="badge grade-{{ rating.grade }}">{{ rating.get_grade_display }}</span></p>
-      <dl>
-        <dt>Timeliness</dt><dd>{{ rating.timeliness_score|floatformat:0 }}/100</dd>
-        <dt>Quality</dt><dd>{{ rating.quality_score|floatformat:0 }}/100</dd>
-        <dt>Variation</dt><dd>{{ rating.variation_score|floatformat:0 }}/100</dd>
-        <dt>Composite</dt><dd><strong>{{ rating.composite|floatformat:0 }}/100</strong></dd>
-      </dl>
-    </div>
-    <div>
-      {% if rating.narrative %}<p>{{ rating.narrative }}</p>{% endif %}
-      <p class="tiny">Rated by {{ rating.rated_by.get_full_name|default:rating.rated_by.username }} on {{ rating.rated_at|date:"d M Y" }}.</p>
-    </div>
+<section aria-labelledby="ws-variations">
+  <h2 id="ws-variations">Variations</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Variations, scrollable">
+    <table class="data">
+      <caption>Every change to price, scope or time, with the reason and the approver.</caption>
+      <thead><tr><th scope="col">#</th><th scope="col">What changed</th><th scope="col" class="num">Value change</th>
+        <th scope="col" class="num">Time change</th><th scope="col">Reason</th><th scope="col">Approved by</th></tr></thead>
+      <tbody>
+      {% for v in variations %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <th scope="row">{{ v.title }} {{ v.status|status_tag }}</th>
+          <td class="num">{{ v.amount_change|naira }}</td>
+          <td class="num">{% if v.time_change_days %}{{ v.time_change_days }} days{% else %}—{% endif %}</td>
+          <td>{{ v.reason }}</td>
+          <td>{% if v.approved_by %}{{ v.approved_by.get_full_name|default:v.approved_by.username }}
+              <span class="tiny">{{ v.approved_at|shortdate }}</span>
+            {% else %}<span class="muted">not yet approved</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
-{% endif %}
-
-{% if events %}
-<div class="card">
-  <h2>Contract events</h2>
-  <table class="data">
-    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead>
-    <tbody>
-    {% for e in events %}
-    <tr>
-      <td>{{ e.occurred_at|date:"d M Y" }}</td>
-      <td>{{ e.kind }}</td>
-      <td>{% if e.amount %}₦{{ e.amount|floatformat:2 }}{% else %}—{% endif %}</td>
-      <td>{{ e.note|truncatechars:100 }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+  <p class="tiny"><a href="/tenders/contracts/{{ c.reference }}/variations/">Variation history in full</a> ·
+  <a href="/tenders/contracts/{{ c.reference }}/">contract terms</a></p>
+</section>
 {% endif %}
 {% endblock %}

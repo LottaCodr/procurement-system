@@ -1,20 +1,120 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Service status{% endblock %}
+{% block title %}Service and ledger status{% endblock %}
+{% block description %}Live continuity report for the {{ STATE_NAME }} procurement platform: ledger chain verification, head hash, security posture and the figures currently published.{% endblock %}
+
 {% block content %}
-<h1>Service status</h1>
-<p class="lead">Published continuity metrics, because the failure that kills these platforms is not a hack &mdash;
-it is a certificate that quietly expired and nobody noticed for a season.</p>
-<div class="grid c4">
-  <div class="kpi"><b>{% if chain_valid %}valid{% else %}BROKEN{% endif %}</b><span>ledger chain &middot; {{ chain_events }} events</span></div>
-  <div class="kpi"><b>{{ hsts|floatformat:0 }}</b><span>HSTS max-age (seconds)</span></div>
-  <div class="kpi"><b>{{ contact_phone }}</b><span>published telephone</span></div>
-  <div class="kpi"><b>{{ generated_at|shortdate }}</b><span>last check</span></div>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Service status</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Service and ledger status</h1>
+  <p class="lede">Published continuity metrics, because the failure that kills these platforms is rarely a
+  hack — it is a certificate that quietly expired and a service nobody noticed was down for a season.</p>
+  <p class="tiny">Checked at {{ generated_at|datetime_wat }}; reload to check again.</p>
+</header>
+
+<div class="grid grid--kpi">
+  <div class="kpi">
+    <span class="kpi__value">{% if m.chain_valid %}Valid{% else %}Broken{% endif %}</span>
+    <span class="kpi__label">ledger chain over {{ m.chain_events }} events</span>
+    <span class="kpi__meta">{{ m.chain_detail }}</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi__value">{{ published_tenders }}</span>
+    <span class="kpi__label">processes published</span>
+    <span class="kpi__meta">{{ awards }} awards</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi__value">{{ m.ledger_events }}</span>
+    <span class="kpi__label">ledger events</span>
+    <span class="kpi__meta">append-only, hash-chained</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi__value">{{ hsts|floatformat:0 }}</span>
+    <span class="kpi__label">HSTS max-age (seconds)</span>
+    <span class="kpi__meta">transport security pinning</span>
+  </div>
 </div>
-{% if not chain_valid %}<div class="badbox"><strong>Chain broken at sequence {{ chain_broken_at }}.</strong> Someone altered history. Escalate per the runbook; do not edit forward.</div>{% endif %}
-{% if placeholder_risk %}<div class="badbox"><strong>Placeholder contact data detected.</strong> The release checklist must fail on this. A portal whose phone number reads &ldquo;XXX XXXX&rdquo; and whose email domain has no mail records is not a service.</div>{% endif %}
-<div class="card"><h3>Append-only enforcement</h3><ul class="tight">{% for l in append_only %}<li>{{ l }}</li>{% endfor %}</ul></div>
-<div class="card"><h3>Content-Security-Policy (enforced)</h3><pre>{% for k,v in csp.items %}{{ k }} {{ v }};
-{% endfor %}</pre></div>
-<div class="card"><h3>Head hash</h3><p class="tiny">Publishable commitment to the entire ledger at this instant. Compare with <code>GET /api/v1/ledger/head</code>.</p>
-<pre>{{ head_hash }}</pre></div>
+
+{% if not m.chain_valid %}
+  <div class="callout callout--danger" role="alert">
+    <span class="callout__title">The ledger chain does not verify: broken at sequence {{ m.chain_broken_at }}</span>
+    <p>Someone altered history. Escalate per the runbook; do not edit forward, and do not trust any figure
+    on this site until the break is explained and published.</p>
+  </div>
+{% endif %}
+
+{% if placeholder_risk %}
+  <div class="callout callout--danger" role="alert">
+    <span class="callout__title">Placeholder contact data detected</span>
+    <p>The release checklist must fail on this. A portal whose telephone number reads “XXX XXXX” and whose
+    email domain has no mail records is not a service — it is a page that looks like one.</p>
+  </div>
+{% endif %}
+
+<div class="grid grid--2">
+  <section class="card" aria-labelledby="head-h">
+    <h2 id="head-h">Ledger head hash</h2>
+    <p class="tiny">A commitment to the entire ledger at this instant. Compare it with
+    <a href="/api/v1/ledger/head">the public endpoint</a> on any other machine.</p>
+    <p class="hash" id="status-head">{{ head_hash|default:"—" }}</p>
+    <button class="btn btn--small btn--secondary" type="button" hidden
+            data-copy-target="#status-head" data-copy-label="Ledger head hash">Copy</button>
+  </section>
+
+  <section class="card" aria-labelledby="contact-h">
+    <h2 id="contact-h">Someone to reach</h2>
+    <dl class="kv kv--stack">
+      <dt>Telephone</dt><dd><a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a></dd>
+      <dt>Email</dt><dd><a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></dd>
+      <dt>Hours</dt><dd>{{ SUPPORT_HOURS }}</dd>
+    </dl>
+    <p class="tiny">A published contact that is never tested is the most common lie on a government
+    website. These are called and emailed during the release checklist.</p>
+  </section>
+</div>
+
+<section aria-labelledby="append-h">
+  <h2 id="append-h">How “append-only” is enforced</h2>
+  <div class="card">
+    <ul>
+      {% for line in append_only %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section aria-labelledby="csp-h">
+  <h2 id="csp-h">Content-Security-Policy in force</h2>
+  <p>Enforced, not report-only. A stored cross-site script in a tender notice is a bid-tampering
+  vulnerability, not a nuisance.</p>
+  <pre class="snippet" id="csp-block"><code>{% for k, v in csp.items %}{{ k }} {{ v|join:" " }};
+{% endfor %}</code></pre>
+  <p class="tiny">The policy allows no inline scripts and no external origins, which is why this site has
+  no third-party fonts, no CDN stylesheet and no analytics tag. There is no analytics or
+  tracking script on this site: that is a decision, not an oversight.</p>
+</section>
+
+<section aria-labelledby="what-watch-h">
+  <h2 id="what-watch-h">What this page is checking</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Continuity checks, scrollable">
+    <table class="data">
+      <caption>Continuity checks and how each is verified — so a green report can be audited like anything
+      else here.</caption>
+      <thead><tr><th scope="col">Check</th><th scope="col">How it is verified</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Ledger chain intact</th><td>Every event re-hashed and compared with the next event's previous-hash.</td>
+          <td>{% if m.chain_valid %}<span class="tag tag--open">valid</span>{% else %}<span class="tag tag--flag">broken</span>{% endif %}</td></tr>
+        <tr><th scope="row">OCDS releases validate</th><td>Each release is checked against the published schema before it is served.</td>
+          <td><span class="tag tag--open">enforced per request</span></td></tr>
+        <tr><th scope="row">Contact details are real</th><td>Checked by hand during the release checklist — this page flags placeholders automatically.</td>
+          <td>{% if placeholder_risk %}<span class="tag tag--flag">placeholder detected</span>{% else %}<span class="tag tag--open">no placeholder pattern</span>{% endif %}</td></tr>
+        <tr><th scope="row">Retired URLs resolve</th><td>Every entry in the published redirect map is fetched in CI.</td>
+          <td><a href="/redirects">see the map</a></td></tr>
+        <tr><th scope="row">Served as data, not claims</th><td>Headline figures are computed at render time and asserted against this API in CI.</td>
+          <td><span class="tag tag--open">asserted in tests</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

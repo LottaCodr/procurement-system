@@ -1,0 +1,68 @@
+/* ==========================================================================
+   04 — PRINT
+   --------------------------------------------------------------------------
+   A procurement register gets printed: auditors print award lists, bidders
+   print tender notices, and a case file is submitted on paper. Print styles
+   are therefore a first-class surface here, not an afterthought:
+     * navigation, filters, forms and the copy buttons are removed — paper has
+       no links to click and no JavaScript;
+     * the URL of every link is printed next to it, because a printed reference
+       that cannot be checked is worthless;
+     * tables are allowed to break across pages, but a table row never splits;
+     * the black-on-white rules in 01-tokens are overridden so status colours
+       do not become unreadable grey mush on a mono laser printer.
+   ========================================================================== */
+
+@page { margin: 15mm; }
+
+@media print {
+  :root {
+    --c-surface: #fff; --c-surface-2: #fff; --c-canvas: #fff;
+    --c-ink: #000; --c-body: #111; --c-muted: #444; --c-line: #999; --c-line-strong: #666;
+  }
+
+  html { font-size: 11pt; }
+  body { background: #fff; color: #000; }
+  .wrap { max-width: none; padding: 0; }
+  main { padding: 0; }
+
+  /* chrome that cannot work on paper */
+  .skip-link, .nav, .masthead__utils, .filters, .pager, .jump, .snippet-wrap .btn,
+  .no-print, .notice-strip, .pillnav, .btn--quiet { display: none !important; }
+  .only-print { display: block; }
+
+  .masthead { background: #fff !important; color: #000 !important; border-bottom: 2px solid #000; }
+  .masthead .brand__mark { background: #000; color: #fff; }
+  .brand { color: #000 !important; }
+  .brand__text b { color: #000 !important; }
+  .brand__text span { color: #333 !important; }
+
+  a { color: #000; text-decoration: none; }
+  /* show the destination of links inside the body of the document */
+  main a[href^="http"]::after, main a[href^="/"]::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #444; word-break: break-all; }
+  main a[href^="#"]::after, .tag::after, nav a::after { content: none; }
+
+  .card, .panel, .callout, .kpi, .table-wrap, .empty, .verify { border: 1px solid #666; box-shadow: none; break-inside: avoid; }
+  .grid, .grid--kpi, .grid--2, .grid--3 { display: block; }
+  .kpi { margin-bottom: 4mm; }
+
+  table.data { font-size: 9pt; }
+  table.data thead { display: table-header-group; }
+  table.data tr { break-inside: avoid; }
+  table.data thead th { position: static; background: #eee !important; color: #000; }
+  table.data tbody tr:hover td { background: none; }
+  .table-wrap { overflow: visible; border: 1px solid #666; }
+
+  /* status words must still read as words when the colour is gone */
+  .tag { border: 1px solid #000; background: none !important; color: #000 !important; font-weight: 700; }
+  .tag::before { background: #000 !important; }
+  .tag--flag::before { content: "▲"; background: none !important; }
+
+  .timeline li { border-left-color: #666; }
+  .timeline li::before { border-color: #000; color: #000; background: #fff; }
+  .timeline li[data-state="done"]::before { background: #000; color: #fff; }
+
+  h2, h3 { break-after: avoid; }
+  .foot { border-top: 1px solid #000; margin-top: 8mm; }
+  .foot a::after { content: " (" attr(href) ")"; font-size: 0.85em; }
+}

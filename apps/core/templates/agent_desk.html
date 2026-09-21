@@ -1,42 +1,94 @@
-{% extends "base.html" %}
-{% block title %}Agent-assisted bidding desk{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Assisted bidding desks{% endblock %}
+{% block description %}Where to get free, in-person help to register and bid for {{ STATE_NAME }} contracts if you have no computer, no smartphone or no data.{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>Agent-assisted bidding desk</h1>
-  <p>Physical desks at the Bureau and each Senatorial zone hub assist suppliers who lack internet access
-  or devices. All actions use the same API with an <code>acted_on_behalf_of</code> field — never a separate,
-  unaudited back channel.</p>
-  <div class="grid-2">
-    <div>
-      <h3>Locations</h3>
-      <ul>{% for l in lgas %}<li>{{ l }} Senatorial Zone Hub</li>{% endfor %}</ul>
-    </div>
-    <div>
-      <h3>Services</h3>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Assisted bidding desks</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Bid without a smartphone</h1>
+  <p class="lede">Around half the contractors in this state do not own a computer, and the ones who do not
+  are the ones agents charge to bid on their behalf. The Bureau runs staffed desks where an officer sits
+  with you and enters your bid — free, and on the same register as everyone else.</p>
+</header>
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="where-h">
+      <h2 id="where-h">Where the desks are</h2>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Assisted bidding desks, scrollable">
+        <table class="data">
+          <caption>Staffed desks. Opening hours are the state's working hours; call ahead if you are
+          travelling from another LGA.</caption>
+          <thead><tr><th scope="col">Local government area</th><th scope="col">What they can do for you</th><th scope="col">Hours</th></tr></thead>
+          <tbody>
+            {% for lga in lgas %}
+              <tr>
+                <th scope="row">{{ lga }}</th>
+                <td>Register a company, attach certificates, fill and submit a bid, print a receipt.</td>
+                <td>{{ SUPPORT_HOURS }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="tiny">Desk staff cannot submit a bid you have not read, cannot set your password, and cannot
+      see the prices of other bidders. Everything they do is recorded against their own staff account on the
+      same ledger as an MDA officer's actions.</p>
+    </section>
+
+    <section aria-labelledby="bring-h">
+      <h2 id="bring-h">What to bring</h2>
       <ul>
-        <li>Supplier registration assistance</li>
-        <li>Bid submission on behalf of registered suppliers</li>
-        <li>Document scanning and upload</li>
-        <li>Tender alert registration (SMS)</li>
+        <li>Your CAC certificate (the original, or a photograph of it).</li>
+        <li>Your tax identification number, and your tax clearance if you have one.</li>
+        <li>A phone number that reaches you, so the desk can send you the receipts.</li>
+        <li>Your bank account details, if you are registering for payment.</li>
+      </ul>
+      <p class="tiny">You do not need to bring a USB drive, and you will not be asked to pay anything.</p>
+    </section>
+
+    <section aria-labelledby="fees-h">
+      <h2 id="fees-h">If someone asks you for money</h2>
+      <p>Nobody may charge a fee to register a supplier or to submit a bid. If an agent, a staff member or
+      anyone else asks you for money to "process" a registration or to "make sure" your bid is seen, that is
+      corruption and you can report it anonymously:
+      <a href="/tenders/whistleblower/">the whistleblower channel</a> takes reports without an account and
+      without your name.</p>
+    </section>
+
+    {% if open_tenders %}
+      <section aria-labelledby="open-h">
+        <h2 id="open-h">Open now — bring any of these to a desk</h2>
+        <ul>
+          {% for t in open_tenders %}
+            <li><a href="/tenders/{{ t.ocid }}/">{{ t.title }}</a> — {{ t.agency.code }},
+              {{ t.submission_close_at|deadline }}, estimate {{ t.est_value|naira }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  </div>
+
+  <aside aria-label="Contact">
+    <div class="card">
+      <h2>Telephone first</h2>
+      <p>If you are travelling, ring the Bureau and ask for the desk in your LGA:
+        <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>{% if CONTACT_EMAIL %}, or email
+        <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a>{% endif %}.</p>
+      <p class="tiny">{{ SUPPORT_HOURS }}. If a desk has no network on the day, the officer will record your
+      bid on paper and enter it with a timestamp you both sign — the register notes entries added this way.</p>
+    </div>
+    <div class="card">
+      <h2>Other ways in</h2>
+      <ul class="jump__list">
+        <li><a href="/tenders/register/">Register a company from any phone</a></li>
+        <li><a href="/tenders/help/#bid">The five steps to bidding</a></li>
+        <li><a href="/tenders/feed/tenders/">Get new notices as they are published</a></li>
       </ul>
     </div>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Open tenders</h2>
-  <table class="data">
-    <thead><tr><th>OCID</th><th>Title</th><th>Agency</th><th>Deadline</th></tr></thead>
-    <tbody>
-    {% for t in open_tenders %}
-    <tr>
-      <td><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></td>
-      <td>{{ t.title|truncatechars:60 }}</td>
-      <td>{{ t.agency.code }}</td>
-      <td>{{ t.submission_close_at|date:"d M Y" }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  </aside>
 </div>
 {% endblock %}

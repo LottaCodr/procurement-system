@@ -1,0 +1,85 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Defect register — {{ c.reference }}{% endblock %}
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/defects/">Defects liability</a></li>
+  <li><span aria-current="page">{{ c.reference }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <p class="tiny">{{ c.award.tender.agency.name }} · {{ c.award.bid.supplier.legal_name }}</p>
+  <h1>Defects on {{ c.reference }}</h1>
+  <p class="lede">{{ defects|length }} defect{{ defects|length|pluralize }} reported, {{ open_defects|length }}
+  still open. Retention held against this contract is
+  {{ retention_amount|naira_exact }} minus {{ retention_released|naira_exact }} already released.</p>
+</header>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ retention_amount|naira }}</span><span class="kpi__label">retention withheld at source</span>
+    <span class="kpi__meta">{{ c.retention_pct|pct }} of {{ c.value|naira }}</span></div>
+  <div class="kpi"><span class="kpi__value">{{ retention_released|naira }}</span><span class="kpi__label">already released</span></div>
+  <div class="kpi"><span class="kpi__value">{{ open_defects|length }}</span><span class="kpi__label">defects open</span>
+    <span class="kpi__meta">of {{ defects|length }} reported</span></div>
+  <div class="kpi"><span class="kpi__value">{{ c.defects_liability_end|shortdate }}</span><span class="kpi__label">liability ends</span>
+    <span class="kpi__meta">{{ c.defect_days }} days from acceptance</span></div>
+</div>
+
+{% if defects %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Defects, scrollable">
+    <table class="data">
+      <caption>Defects reported against this contract, most recent first. A defect is closed only when it
+      is verified fixed, not when it is reported fixed.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Reported</th>
+          <th scope="col">Defect</th>
+          <th scope="col">Severity</th>
+          <th scope="col">Status</th>
+          <th scope="col">Verified</th>
+          <th scope="col" class="hide-xs">Reported by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in defects %}
+          <tr>
+            <td>{{ d.reported_at|shortdate }}</td>
+            <th scope="row">{{ d.description }}</th>
+            <td>{{ d.severity|severity_tag }}</td>
+            <td>{{ d.status|status_tag }}
+              {% if d.resolved_at %}<span class="tiny">resolved {{ d.resolved_at|shortdate }}</span>{% endif %}</td>
+            <td>{% if d.verified_at %}{{ d.verified_at|shortdate }}
+                <span class="tiny">{{ d.verified_by.get_full_name|default:d.verified_by.username }}</span>
+              {% else %}<span class="tag tag--warn">not verified</span>{% endif %}</td>
+            <td class="hide-xs">{{ d.reported_by.get_full_name|default:d.reported_by.username }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="callout callout--info">
+    <span class="callout__title">No defect has been reported on this contract</span>
+    <p>That can mean the work is sound, or that nobody has inspected it. The retention is still held either
+    way — and the page prints that distinction instead of claiming quality from silence.</p>
+  </div>
+{% endif %}
+
+{% if close_out %}
+<section aria-labelledby="closeout-h">
+  <h2 id="closeout-h">Close-out</h2>
+  <div class="card">
+    <dl class="kv">
+      <dt>Performance rating</dt><dd>{{ close_out.get_performance_rating_display }}</dd>
+      <dt>Closed out</dt><dd>{{ close_out.closed_out_at|datetime_wat }} by
+        {{ close_out.closed_out_by.get_full_name|default:close_out.closed_out_by.username }}</dd>
+      {% if close_out.comments %}<dt>Comments</dt><dd>{{ close_out.comments }}</dd>{% endif %}
+    </dl>
+  </div>
+</section>
+{% endif %}
+
+<p class="tiny"><a href="/tenders/contracts/{{ c.reference }}/">Back to the contract</a> ·
+<a href="/tenders/contracts/{{ c.reference }}/workspace/">delivery workspace</a> ·
+<a href="/tenders/contracts/{{ c.reference }}/variations/">variations</a></p>
+{% endblock %}

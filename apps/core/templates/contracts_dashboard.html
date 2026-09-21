@@ -1,59 +1,107 @@
-{% extends "base.html" %}
-{% block title %}Contracts dashboard{% endblock %}
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Contracts — delivery, variations and payment{% endblock %}
+{% block description %}Every contract {{ STATE_NAME }} has signed: value, duration, variations against the original price, milestone and payment status.{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>Contracts dashboard</h1>
-  <div class="metrics">
-    <div class="metric"><span class="num">{{ contracts.count }}</span><span class="lbl">Total contracts</span></div>
-    <div class="metric"><span class="num">{{ active_count }}</span><span class="lbl">Active</span></div>
-    <div class="metric"><span class="num">{{ paid_count }}</span><span class="lbl">Paid</span></div>
-    <div class="metric"><span class="num">₦{{ total_value|floatformat:0 }}</span><span class="lbl">Total value</span></div>
-    {% if defaulted_count %}<div class="metric"><span class="num bad">{{ defaulted_count }}</span><span class="lbl">Defaulted</span></div>{% endif %}
-  </div>
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li><li><span aria-current="page">Contracts</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Contracts</h1>
+  <p class="lede">Signing is where public scrutiny usually stops elsewhere. Here it is where the record
+  gets more detailed: variations, milestones, guarantees, acceptances and every payment certified against
+  the contract.</p>
+</header>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><span class="kpi__value">{{ contracts|length }}</span><span class="kpi__label">contracts in view</span></div>
+  <div class="kpi"><span class="kpi__value">{{ total_value|naira }}</span><span class="kpi__label">total contract value</span></div>
+  <div class="kpi"><span class="kpi__value">{{ active_count }}</span><span class="kpi__label">signed or active</span></div>
+  <div class="kpi"><span class="kpi__value">{{ paid_count }}</span><span class="kpi__label">fully paid</span>
+    {% if defaulted_count %}<span class="kpi__meta"><span class="tag tag--flag">{{ defaulted_count }} defaulted</span></span>{% endif %}</div>
 </div>
+
+<nav aria-label="Filter contracts by status">
+  <ul class="pillnav">
+    <li><a href="/tenders/contracts/" {% if not status_filter %}aria-current="page"{% endif %}>All</a></li>
+    {% for code, label in statuses %}
+      <li><a href="/tenders/contracts/?status={{ code }}" {% if status_filter == code %}aria-current="page"{% endif %}>{{ label }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
 
 {% if high_variation %}
-<div class="card">
-  <h2>⚠ High variation contracts (>10%)</h2>
-  <table class="data">
-    <thead><tr><th>Contract</th><th>Supplier</th><th>Value</th><th>Variation %</th><th>Agency</th></tr></thead>
-    <tbody>
-    {% for c, vp in high_variation %}
-    <tr>
-      <td><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></td>
-      <td><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></td>
-      <td>₦{{ c.value|floatformat:2 }}</td>
-      <td><span class="badge bad">{{ vp }}%</span></td>
-      <td>{{ c.award.tender.agency.code }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+<section aria-labelledby="var-alarm">
+  <h2 id="var-alarm">Contracts changed by more than 10%</h2>
+  <p>A variation is lawful. A pattern of variations that quietly raises a contract price by double digits
+  after the competition is over is how a competitive award becomes a non-competitive one.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="High-variation contracts, scrollable">
+    <table class="data">
+      <caption>Contracts whose cumulative variations exceed 10% of the original value.</caption>
+      <thead><tr><th scope="col">Contract</th><th scope="col">Supplier</th><th scope="col" class="num">Original value</th><th scope="col" class="num">Change</th><th scope="col" class="hide-xs">Agency</th></tr></thead>
+      <tbody>
+      {% for c, vp in high_variation %}
+        <tr>
+          <th scope="row"><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></th>
+          <td>{{ c.award.bid.supplier.legal_name }}</td>
+          <td class="num">{{ c.value|naira }}</td>
+          <td class="num"><span class="tag tag--flag">+{{ vp|pct }}</span></td>
+          <td class="hide-xs">{{ c.award.tender.agency.code }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endif %}
 
-<div class="card">
-  <h2>All contracts</h2>
-  <div class="filters">
-    {% for code, label in statuses %}
-    <a href="?status={{ code }}" class="btn {% if status_filter == code %}primary{% endif %}">{{ label }}</a>
-    {% endfor %}
-    <a href="/tenders/contracts/" class="btn">All</a>
-  </div>
-  <table class="data">
-    <thead><tr><th>Reference</th><th>Supplier</th><th>Value</th><th>Status</th><th>Signed</th><th>Duration</th></tr></thead>
-    <tbody>
-    {% for c in contracts %}
-    <tr>
-      <td><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></td>
-      <td><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></td>
-      <td>₦{{ c.value|floatformat:2 }}</td>
-      <td><span class="badge">{{ c.get_status_display }}</span></td>
-      <td>{{ c.signed_at|date:"d M Y" }}</td>
-      <td>{{ c.duration_days }}d</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+<section aria-labelledby="all-contracts">
+  <h2 id="all-contracts">All contracts in this view</h2>
+  {% if contracts %}
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Contracts, scrollable">
+      <table class="data data--sticky-first">
+        <caption>Contracts, most recently signed first.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Reference</th>
+            <th scope="col">Supplier</th>
+            <th scope="col" class="num">Value</th>
+            <th scope="col" class="num hide-xs">Variation</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="hide-xs">Signed</th>
+            <th scope="col" class="num hide-xs">Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for c in contracts %}
+          <tr>
+            <th scope="row"><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a>
+              <span class="tiny">{{ c.award.tender.agency.code }}</span></th>
+            <td><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></td>
+            <td class="num">{{ c.value|naira }}</td>
+            <td class="num hide-xs">{% with vp=variation_pct_by_id|get_item:c.pk %}{% if vp %}<span class="{% if vp > 10 %}tag tag--flag{% endif %}">{{ vp|pct }}</span>{% else %}—{% endif %}{% endwith %}</td>
+            <td>{{ c.status|status_tag }}</td>
+            <td class="hide-xs">{{ c.signed_at|shortdate }}</td>
+            <td class="num hide-xs">{{ c.duration_days }}d</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">
+      <span class="swipe-hint" data-scroll-hint hidden>Swipe sideways to see every column.</span>
+      <span><a href="/api/v1/contracts">Contracts as JSON</a> · <a href="/tenders/payments/">Payment certifications</a></span>
+    </p>
+  {% else %}
+    <div class="empty">
+      <h3>No contract matches that status</h3>
+      <p>Try the full list, or read the tender register to see processes that have not reached signature.</p>
+      <div class="cluster">
+        <a class="btn" href="/tenders/contracts/">All contracts</a>
+        <a class="btn btn--secondary" href="/tenders/">Tender register</a>
+      </div>
+    </div>
+  {% endif %}
+</section>
 {% endblock %}
