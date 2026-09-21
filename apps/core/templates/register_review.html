@@ -49,13 +49,12 @@
       <tbody>
         {% for d in drafts %}
           <tr>
-            <th scope="row">{{ d.company_name|default:"(no name entered)" }}
-              <span class="tiny">{{ d.lga }}{% if d.lga and d.state %}, {% endif %}{{ d.state }}</span></th>
+            <th scope="row"><a href="/tenders/register/review/{{ d.pk }}/">{{ d.company_name|default:"(no name entered)" }}</a>
+              <span class="tiny">{{ d.reference }} · {{ d.lga }}{% if d.lga and d.state %}, {% endif %}{{ d.state }}</span></th>
             <td class="hide-xs">{{ d.rc_number|default:"—" }}</td>
             <td class="hide-xs">{{ d.tin|mask_tax }}</td>
             <td>{{ d.submitted_at|shortdate }}</td>
-            <td>{{ d.submitted_at|relative }}
-              {% if d.submitted_at and d.submitted_at|timesince > "14 days" %}{% endif %}</td>
+            <td>{{ d.submitted_at|relative }}</td>
             <td class="hide-xs">{{ d.documents.count }} attached</td>
             <td>{{ d.status|status_tag }}</td>
           </tr>

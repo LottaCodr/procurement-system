@@ -1,0 +1,25 @@
+# Keep the serverless bundle down to what the app needs at request/build time.
+# Secrets and local state must never ship inside the function bundle.
+.git
+.github
+.env
+.env.*
+!.env.example
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+db.sqlite3
+dis.html
+log.html
+reg.html
+tests/
+docs/
+DESIGN-taraba-eprocurement.md
+IMPLEMENTATION_SUMMARY.md
+Dockerfile
+docker-compose.yml
+pytest.ini
+reference_consumer.py

@@ -1,0 +1,109 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}{% if draft %}Registration {{ draft.reference }} — {{ draft.get_status_display }}{% else %}Track your registration{% endif %}{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/register/">Supplier registration</a></li>
+  <li><span aria-current="page">Track an application</span></li>
+</ol></nav>
+
+{% if not draft %}
+  <header class="page-head page-head--ruled">
+    <h1>Track your registration</h1>
+    <p class="lede">Enter the reference you were given when you submitted, and the email you registered
+    with. If you kept your private link instead, that works too — paste it in the address bar.</p>
+  </header>
+
+  {% if lookup_error %}
+    <div class="callout callout--bad"><span class="callout__title">Not found</span><p>{{ lookup_error }}</p></div>
+  {% endif %}
+
+  <form class="form" method="post" action="/tenders/register/status/" novalidate>
+    {% csrf_token %}
+    <div class="field">
+      <label class="field__label" for="reference">Reference number</label>
+      <span class="field__hint">In the form VND-000042.</span>
+      <input id="reference" name="reference" type="text" required autocapitalize="characters">
+    </div>
+    <div class="field">
+      <label class="field__label" for="email">Email you registered with</label>
+      <input id="email" name="email" type="email" required autocomplete="email">
+    </div>
+    <p><button class="btn" type="submit">Show my application</button></p>
+  </form>
+{% else %}
+  <header class="page-head page-head--ruled">
+    <h1>Registration {{ draft.reference }}</h1>
+    <p class="lede">{{ draft.company_name|default:"(company name not yet entered)" }} —
+    {{ draft.get_status_display }}{% if draft.submitted_at %}, submitted {{ draft.submitted_at|shortdate }}{% endif %}.</p>
+  </header>
+
+  <ol class="timeline">
+    <li data-state="{% if draft.status == 'DRAFT' %}current{% else %}done{% endif %}">
+      <span class="timeline__label">Draft created</span>
+      <span class="timeline__meta">{{ draft.created_at|shortdate }}</span>
+    </li>
+    <li data-state="{% if draft.status == 'DRAFT' %}{% elif draft.status == 'SUBMITTED' %}current{% else %}done{% endif %}">
+      <span class="timeline__label">Submitted</span>
+      <span class="timeline__meta">{{ draft.submitted_at|shortdate|default:"not yet submitted" }}</span>
+    </li>
+    <li data-state="{% if draft.status == 'VERIFYING' %}current{% elif draft.status == 'APPROVED' or draft.status == 'REJECTED' %}done{% endif %}">
+      <span class="timeline__label">Bureau review</span>
+      <span class="timeline__meta">{% if draft.reviewer %}assigned to a Bureau {{ draft.reviewer.get_role_display }}{% else %}waiting in the queue{% endif %}</span>
+    </li>
+    <li data-state="{% if draft.status == 'APPROVED' or draft.status == 'REJECTED' %}current{% endif %}">
+      <span class="timeline__label">Decision</span>
+      <span class="timeline__meta">{{ draft.reviewed_at|shortdate|default:"pending" }}</span>
+    </li>
+  </ol>
+
+  {% if draft.status == "REJECTED" %}
+    <div class="callout callout--bad">
+      <span class="callout__title">Not approved — reasons given</span>
+      <p>{{ draft.review_notes }}</p>
+      <p>{% for doc in draft.documents.all %}{% if doc.verification_status == "REJECTED" %}
+        Certificate {{ doc.get_kind_display }} was refused: {{ doc.verification_note }}<br>
+      {% endif %}{% endfor %}</p>
+      <p>Fix the items named above and <a href="/tenders/register/">submit a new registration</a>. There is
+      no fee, and a refusal does not bar you from bidding once you are registered.</p>
+    </div>
+  {% elif draft.status == "APPROVED" and draft.submitted_party %}
+    <div class="callout callout--ok">
+      <span class="callout__title">Approved</span>
+      <p>{{ draft.company_name }} is on the public supplier register.
+      <a href="/tenders/suppliers/{{ draft.submitted_party.pk }}/">See your public profile</a> — it shows
+      exactly which checks were done, by whom, and when.</p>
+    </div>
+  {% elif draft.status == "DRAFT" %}
+    <div class="callout callout--warn">
+      <span class="callout__title">Not submitted yet</span>
+      <p>This draft has not been submitted, so there is nothing to review.
+      <a href="/tenders/register/form/{{ draft.draft_token }}/">Continue the form</a>.</p>
+    </div>
+  {% endif %}
+
+  {% if draft.documents.all %}
+    <h2>Certificates</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Certificate review status">
+      <table class="data">
+        <caption>How each certificate you attached has been reviewed.</caption>
+        <thead><tr><th scope="col">Certificate</th><th scope="col">Review status</th><th scope="col">Reviewer's note</th></tr></thead>
+        <tbody>
+          {% for doc in draft.documents.all %}
+            <tr>
+              <th scope="row">{{ doc.get_kind_display }}</th>
+              <td>{{ doc.verification_status|status_tag }}</td>
+              <td>{{ doc.verification_note|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <p class="tiny">This page shows only the application held by its private link. It is not the public
+  register — approved companies appear on the <a href="/tenders/suppliers/">supplier register</a> where
+  everyone can see the dated verification checks.</p>
+{% endif %}
+{% endblock %}

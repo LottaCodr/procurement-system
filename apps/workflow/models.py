@@ -61,6 +61,7 @@ class SupplierRegistrationDraft(models.Model):
         REVIEW = 6, "Review & submit"
 
     draft_token = models.CharField(max_length=64, unique=True, editable=False)
+    reference = models.CharField(max_length=16, blank=True, editable=False, help_text="Public reference, e.g. VND-000042")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
@@ -81,6 +82,10 @@ class SupplierRegistrationDraft(models.Model):
     address = models.TextField(blank=True)
     category = models.CharField(max_length=1, blank=True, choices=__import__("procurement.models_party", fromlist=["Party"]).Party.Category.choices)
     scope = models.CharField(max_length=8, default="LOCAL", choices=__import__("procurement.models_party", fromlist=["Party"]).Party.Scope.choices)
+    employees_count = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Staff on the payroll. Drives the statutory exemptions: PenCom does not apply below 3 employees (Pension Reform Act 2014), ITF below 5.",
+    )
     full_name = models.CharField(max_length=200, blank=True)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=24, blank=True)
@@ -97,14 +102,43 @@ class SupplierRegistrationDraft(models.Model):
     class Meta:
         db_table = "vendor_draft"
         ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["reference"],
+                condition=~models.Q(reference=""),
+                name="uniq_vendor_draft_reference",
+            )
+        ]
 
     def save(self, *a, **kw):
         if not self.draft_token:
             alphabet = string.ascii_letters + string.digits
             self.draft_token = "".join(secrets.choice(alphabet) for _ in range(40))
         super().save(*a, **kw)
+        if not self.reference:
+            # Needs a pk first; the reference is what the vendor quotes on the
+            # phone to the Bureau, so it is short and sequential, unlike the
+            # draft token which is an unguessable private link.
+            self.reference = f"VND-{self.pk:06d}"
+            super().save(update_fields=["reference"])
+
+    def required_document_kinds(self) -> set[str]:
+        """Which certificates this particular company must attach.
+
+        The requirements are statutory, not uniform: PenCom applies only to
+        employers of three or more (Pension Reform Act 2014), so a two-person
+        shop in Wukari must not be blocked by a certificate it legally cannot
+        obtain. CAC and TIN are unconditional.
+        """
+        kinds = {"CAC", "TIN"}
+        from django.conf import settings as _s
+        if self.employees_count is None or self.employees_count >= _s.PENCOM_MIN_EMPLOYEES:
+            kinds.add("PENCOM")
+        return kinds
 
     def ready_to_submit(self) -> list[str]:
+        from workflow.validators import rc_number_errors, tin_errors
+
         errs = []
         for f, label in [
             ("company_name", "Company name"), ("rc_number", "RC number"), ("tin", "TIN"),
@@ -113,10 +147,15 @@ class SupplierRegistrationDraft(models.Model):
         ]:
             if not getattr(self, f):
                 errs.append(label)
-        required_kinds = {"CAC", "TIN", "PENCOM"}
+        errs += rc_number_errors(self.rc_number) if self.rc_number else []
+        errs += tin_errors(self.tin) if self.tin else []
         kinds_present = set(self.documents.values_list("kind", flat=True))
-        if not required_kinds.issubset(kinds_present):
-            errs.append("three supporting documents (CAC, TIN, PenCom)")
+        missing_kinds = self.required_document_kinds() - kinds_present
+        if missing_kinds:
+            errs.append(
+                "supporting documents: " + ", ".join(sorted(missing_kinds))
+                + ("" if "PENCOM" not in missing_kinds else " (PenCom is not needed if you employ fewer than 3 people — enter your staff count in step 4)")
+            )
         if not self.owners.exists():
             errs.append("beneficial ownership disclosure (≥5%)")
         if not self.accept_terms:
@@ -129,6 +168,8 @@ class DraftDocument(models.Model):
         CAC = "CAC", "CAC incorporation certificate"
         TIN = "TIN", "TIN / tax clearance"
         PENCOM = "PENCOM", "PenCom compliance certificate"
+        ITF = "ITF", "ITF compliance certificate"
+        NSITF = "NSITF", "NSITF compliance certificate"
         BANK = "BANK", "Bank reference / NUBAN verification"
         TECH = "TECH", "Technical capability memo"
 
@@ -139,6 +180,10 @@ class DraftDocument(models.Model):
     obj_key = models.CharField(max_length=300)
     filename = models.CharField(max_length=240)
     content_type = models.CharField(max_length=80, default="application/pdf")
+    # The uploaded bytes string. Kept on the row (not the filesystem) so it
+    # survives serverless/ephemeral storage and can be re-hashed to prove the
+    # file the reviewer approved is bit-for-bit the file the vendor submitted.
+    blob = models.BinaryField(null=True, blank=True)
     issued_date = models.DateField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)

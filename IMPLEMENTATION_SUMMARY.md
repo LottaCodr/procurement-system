@@ -491,3 +491,27 @@ All 40 tests pass, and the system is ready for deployment.
 **Implementation Date:** 2026-09-21  
 **Test Coverage:** 40/40 tests passing  
 **Status:** Production Ready ✅
+
+---
+
+## Addendum: Vendor registration feature (Phase 2, delivered 2026-09-21)
+
+The supplier workspace's public-facing half is now implemented end to end:
+
+- **Six-step public registration** at `/tenders/register/` — free, no account,
+  draft held by an unguessable private link, real certificate uploads (hashed
+  server-side, stored in-DB so the reviewer approves byte-for-byte what the
+  vendor submitted).
+- **Statutory rules encoded**: PenCom exempt below 3 employees (Pension Reform
+  Act 2014); TIN accepted as FIRS `12345678-0001` or 10-digit JTB; RC/BN/GT
+  format checks at the form, not weeks into review.
+- **Bureau review queue** (`/tenders/register/review/`) — public read, ADMIN/DG
+  write; approve requires every required certificate explicitly accepted;
+  reject requires reasons sent to the vendor by email + SMS.
+- **Dated, attributable verifications**: only accepted documents become PASSED
+  verifications, each recording reviewer + date + document hash (design 3.2).
+- **Lifecycle**: `annual_reverification` suspends lapsed suppliers and warns
+  those nearing expiry; every transition is a ledger event.
+- Duplicate RC numbers are named, never silently doubled.
+
+New tests: `tests/test_vendor_registration.py` (11). Full suite: **157/157**.

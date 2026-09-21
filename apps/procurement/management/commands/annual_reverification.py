@@ -1,128 +1,82 @@
-"""Management command for annual supplier re-verification.
+"""Annual supplier re-verification — the nightly cron entry.
 
-Design requirement: "Suppliers are never 'approved once, trusted forever':
-re-verify annually, auto-suspend on expiry"
+Design requirement (doc 3.2): suppliers are never "approved once, trusted
+forever". Re-verify annually, auto-suspend on expiry, and warn before expiry.
+
+Two jobs, in order:
+
+1. **Suspend** firms whose core credentials (CAC, TIN, pension) have lapsed.
+   A lapsed tax clearance proves nothing, so the register stops showing the
+   firm as verified instead of carrying a stale badge. The suspension is a
+   ledger event, so the register can show *when* and *why* a firm disappeared.
+2. **Warn** firms whose credentials lapse within the reminder window, by SMS
+   and email, so the suspension is never a surprise.
 """
+from datetime import timedelta
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import timedelta
-from procurement.models_party import PartyVerification as SupplierVerification
-from workflow.notifications import get_sms_backend, get_email_backend
+
+from procurement.models_party import PartyVerification
+from workflow.models import Notification
+from workflow.services import _send_notification, suspend_expired_suppliers
 
 
 class Command(BaseCommand):
-    help = 'Re-verify suppliers annually and suspend those with expired documents'
+    help = "Suspend suppliers whose credentials expired; warn those expiring soon"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Show what would be done without making changes',
-        )
-        parser.add_argument(
-            '--notify',
-            action='store_true',
-            help='Send notifications to suppliers with expiring documents',
-        )
-        parser.add_argument(
-            '--days-before-expiry',
-            type=int,
-            default=30,
-            help='Days before expiry to send reminder (default: 30)',
-        )
+        parser.add_argument("--dry-run", action="store_true",
+                            help="Report what would happen without changing anything.")
+        parser.add_argument("--notify", action="store_true",
+                            help="Also send expiry warnings for credentials inside the window.")
+        parser.add_argument("--days-before-expiry", type=int, default=30,
+                            help="Warning window in days (default: 30).")
 
     def handle(self, *args, **options):
-        dry_run = options['dry_run']
-        notify = options['notify']
-        days_before = options['days_before_expiry']
+        dry_run = options["dry_run"]
+        today = timezone.localdate()
+        window = today + timedelta(days=options["days_before_expiry"])
 
-        today = timezone.now().date()
-        reminder_date = today + timedelta(days=days_before)
-
-        self.stdout.write(self.style.SUCCESS(
-            f'Starting annual supplier re-verification (dry_run={dry_run})'
-        ))
-
-        # Find suppliers with expired verifications
-        expired_verifications = SupplierVerification.objects.filter(
-            expires_at__lt=today,
-            party__is_active=True,
-        ).select_related('party')
-
-        expired_suppliers = set(v.party for v in expired_verifications)
-
-        self.stdout.write(f'Found {len(expired_suppliers)} suppliers with expired verifications')
-
-        # Suspend suppliers with expired documents
-        suspended_count = 0
-        for supplier in expired_suppliers:
-            if dry_run:
-                self.stdout.write(f'  Would suspend: {supplier.name} ({supplier.rc_number})')
-            else:
-                supplier.is_active = False
-                supplier.save(update_fields=['is_active'])
-                self.stdout.write(self.style.WARNING(
-                    f'  Suspended: {supplier.name} ({supplier.rc_number})'
-                ))
-            suspended_count += 1
-
-        # Find suppliers with expiring documents (within reminder window)
-        expiring_verifications = SupplierVerification.objects.filter(
-            expires_at__gte=today,
-            expires_at__lte=reminder_date,
-            party__is_active=True,
-        ).select_related('party')
-
-        expiring_suppliers = {}
-        for v in expiring_verifications:
-            if v.party not in expiring_suppliers:
-                expiring_suppliers[v.party] = []
-            expiring_suppliers[v.party].append(v)
-
-        self.stdout.write(f'Found {len(expiring_suppliers)} suppliers with expiring documents')
-
-        # Send notifications
-        notified_count = 0
-        if notify:
-            sms_backend = get_sms_backend()
-            email_backend = get_email_backend()
-
-            for supplier, verifications in expiring_suppliers.items():
-                expiring_docs = [f"{v.verification_type} (expires {v.expiry_date})" for v in verifications]
-
-                message = (
-                    f"Taraba Procurement: Your supplier registration documents will expire soon:\n"
-                    f"{chr(10).join(expiring_docs)}\n"
-                    f"Please renew at https://procurement.taraba.gov.ng/supplier/profile/"
-                )
-
-                if dry_run:
-                    self.stdout.write(f'  Would notify: {supplier.name}')
-                else:
-                    # Try SMS first
-                    if supplier.phone:
-                        result = sms_backend.send(supplier.phone, message, channel='SMS')
-                        if result.get('success'):
-                            self.stdout.write(f'  SMS sent to {supplier.name}')
-
-                    # Also try email
-                    if supplier.email:
-                        result = email_backend.send(
-                            supplier.email,
-                            message,
-                            subject='Action Required: Supplier Documents Expiring Soon'
-                        )
-                        if result.get('success'):
-                            self.stdout.write(f'  Email sent to {supplier.name}')
-
-                    notified_count += 1
-
-        # Summary
-        self.stdout.write(self.style.SUCCESS('\nRe-verification complete:'))
-        self.stdout.write(f'  Suppliers suspended: {suspended_count}')
-        self.stdout.write(f'  Suppliers notified: {notified_count}')
+        lapsed = PartyVerification.objects.filter(
+            kind__in=[PartyVerification.Kind.CAC, PartyVerification.Kind.TIN, PartyVerification.Kind.PENSION],
+            status=PartyVerification.PASSED, expires_at__lt=today, party__is_active=True,
+        ).select_related("party")
+        lapsed_parties = {v.party for v in lapsed}
+        self.stdout.write(f"Suppliers with lapsed core credentials: {len(lapsed_parties)}")
+        for p in sorted(lapsed_parties, key=lambda x: x.legal_name):
+            self.stdout.write(f"  - {p.legal_name} ({p.rc_number})")
 
         if dry_run:
-            self.stdout.write(self.style.WARNING(
-                '\nThis was a dry run. No changes were made.'
-            ))
+            self.stdout.write(self.style.WARNING("Dry run: nothing suspended."))
+        else:
+            suspended = suspend_expired_suppliers()
+            for p in suspended:
+                self.stdout.write(self.style.WARNING(f"  Suspended: {p.legal_name} ({p.rc_number})"))
+
+        expiring = PartyVerification.objects.filter(
+            status=PartyVerification.PASSED, expires_at__gte=today, expires_at__lte=window,
+            party__is_active=True,
+        ).select_related("party")
+        by_party: dict = {}
+        for v in expiring:
+            by_party.setdefault(v.party, []).append(v)
+        self.stdout.write(f"Suppliers with credentials expiring within {options['days_before_expiry']} days: {len(by_party)}")
+
+        notified = 0
+        for party, verifications in by_party.items():
+            lines = ", ".join(f"{v.get_kind_display()} ({v.expires_at})" for v in verifications)
+            body = (f"Taraba BPP: your supplier credentials expire soon: {lines}. "
+                    "Renew them and re-register on the portal to stay eligible to bid.")
+            self.stdout.write(f"  - {party.legal_name}: {lines}")
+            if not dry_run and options["notify"]:
+                _send_notification(kind=Notification.Kind.DEADLINE_REMINDER, channel=Notification.Channel.EMAIL,
+                                   recipient_email=party.email, recipient_phone=party.phone,
+                                   body=body, reference_key=f"party:{party.pk}")
+                if party.phone:
+                    _send_notification(kind=Notification.Kind.DEADLINE_REMINDER, channel=Notification.Channel.SMS,
+                                       recipient_phone=party.phone, body=body, reference_key=f"party:{party.pk}")
+                notified += 1
+
+        self.stdout.write(self.style.SUCCESS(
+            f"Done. Suspended: {0 if dry_run else len(lapsed_parties)}, warned: {notified}."))

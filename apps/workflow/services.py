@@ -79,17 +79,82 @@ from workflow.models import (
 
 
 # ============================================================= supplier registration
+#
+# The flow, end to end:
+#   DRAFT ──(vendor submits)──▶ SUBMITTED ──▶ VERIFYING ──▶ APPROVED → Party
+#                                     │              │
+#                                     └──────────────┴──────▶ REJECTED (with reasons)
+#
+# Two invariants keep this honest:
+#  * Nobody is "approved once, trusted forever": verifications carry an expiry,
+#    and `suspend_expired_suppliers` removes firms whose credentials lapse.
+#  * A verification is a dated, attributable assertion made by a named reviewer
+#    who accepted a specific document — never an automatic PASSED stamp at
+#    approval time (design doc 3.2).
+
+# Draft document kind → PartyVerification kind. PENCOM is spelled PENSION on
+# the supplier profile because that is what the profile prints ("pension
+# compliance"); the mapping lives in exactly one place.
+_DOC_TO_VERIFICATION = {"CAC": "CAC", "TIN": "TIN", "PENCOM": "PENSION", "ITF": "ITF", "NSITF": "NSITF", "BANK": "BANK"}
+REVIEW_ROLES = {"ADMIN", "DG"}
+
+
 def start_registration() -> SupplierRegistrationDraft:
     return SupplierRegistrationDraft.objects.create()
 
 
+def _assert_editable(draft: SupplierRegistrationDraft) -> None:
+    if draft.status not in ("DRAFT",):
+        raise ValidationError(
+            f"This registration has already been {draft.status.lower()}. "
+            "A submitted registration cannot be edited — start a new draft if details changed."
+        )
+
+
 def save_draft_step(draft: SupplierRegistrationDraft, step: int, payload: dict, actor: str = "vendor") -> SupplierRegistrationDraft:
+    from workflow.validators import normalise_phone, normalise_rc_number, normalise_tin, rc_number_errors, tin_errors
+
+    _assert_editable(draft)
+    payload = dict(payload)
+    if draft.status == "REJECTED":
+        draft.status = "DRAFT"  # a rejected firm may correct and resubmit
+
+    # Normalise identity fields the moment they are typed, and reject
+    # malformed ones immediately — a vendor must not wait for review to learn
+    # their TIN has the wrong shape.
+    if payload.get("rc_number"):
+        payload["rc_number"] = normalise_rc_number(str(payload["rc_number"]))
+    if payload.get("tin"):
+        payload["tin"] = normalise_tin(str(payload["tin"]))
+    if payload.get("phone"):
+        payload["phone"] = normalise_phone(str(payload["phone"]))
+    errors = {}
+    errors.update({k: m for k, m in [("rc_number", rc_number_errors(payload.get("rc_number", "")))] if m})
+    errors.update({k: m for k, m in [("tin", tin_errors(payload.get("tin", "")))] if m})
+    if errors:
+        raise ValidationError(errors)
+
+    if payload.get("annual_turnover") not in (None, ""):
+        try:
+            payload["annual_turnover"] = Decimal(str(payload["annual_turnover"]).replace(",", "").replace("₦", ""))
+        except Exception:
+            raise ValidationError({"annual_turnover": "Annual turnover must be a number, e.g. 25000000."})
+    if payload.get("employees_count") in ("", None):
+        payload.pop("employees_count", None)
+
     allowed = [f.name for f in SupplierRegistrationDraft._meta.get_fields() if not f.name.startswith("_")]
+    protected = {"id", "draft_token", "reference", "created_at", "submitted_at", "current_step", "status",
+                 "submitted_party", "reviewer", "review_notes", "reviewed_at"}
     for k, v in payload.items():
-        if k in ("id", "draft_token", "created_at", "submitted_at", "current_step", "status", "submitted_party", "reviewer", "review_notes", "reviewed_at"):
+        if k in protected or k not in allowed:
             continue
-        if k in allowed:
-            setattr(draft, k, v)
+        # HTML forms send "" for empty number fields; the database wants NULL
+        # or 0, never an empty string.
+        if v == "":
+            field = SupplierRegistrationDraft._meta.get_field(k)
+            if not getattr(field, "empty_strings_allowed", True):
+                v = None if field.null else (False if field.get_internal_type() == "BooleanField" else 0)
+        setattr(draft, k, v)
     draft.current_step = step
     draft.save()
     append(
@@ -101,12 +166,38 @@ def save_draft_step(draft: SupplierRegistrationDraft, step: int, payload: dict, 
     return draft
 
 
-def upload_draft_document(draft: SupplierRegistrationDraft, kind: str, file_sha256: str, size_bytes: int, obj_key: str, filename: str, content_type: str, issued=None, expiry=None) -> DraftDocument:
+def upload_draft_document(draft: SupplierRegistrationDraft, kind: str, file_sha256: str = "", size_bytes: int = 0,
+                          obj_key: str = "", filename: str = "", content_type: str = "application/pdf",
+                          issued=None, expiry=None, blob: bytes | None = None) -> DraftDocument:
+    """Attach one certificate to a draft.
+
+    Two calling styles:
+    * **bytes in** (`blob=`) — the browser form path. The server hashes the
+      file itself, enforces the size cap, and stores the bytes on the row.
+    * **metadata in** (sha256/size/obj_key) — the API path where the file was
+      uploaded straight to the object store by the client.
+    """
+    if kind not in DraftDocument.Kind.values:
+        raise ValidationError({"kind": f"'{kind}' is not a recognised certificate type."})
+    _assert_editable(draft)
+
+    if blob is not None:
+        size_bytes = len(blob)
+        if size_bytes == 0:
+            raise ValidationError({"file": "The file is empty — attach the actual certificate."})
+        if size_bytes > settings.MAX_UPLOAD_BYTES:
+            raise ValidationError({"file": f"File is too large ({size_bytes:,} bytes). The limit is {settings.MAX_UPLOAD_BYTES:,} bytes — rescan at lower quality or photograph again."})
+        file_sha256 = hashlib.sha256(blob).hexdigest()
+        obj_key = f"db:vendor:{draft.pk}:{kind}"
+    elif not file_sha256:
+        raise ValidationError({"file": "No certificate content received."})
+
     dd, _ = DraftDocument.objects.update_or_create(
         draft=draft, kind=kind,
         defaults={"sha256": file_sha256, "size_bytes": size_bytes, "obj_key": obj_key,
-                  "filename": filename, "content_type": content_type,
-                  "issued_date": issued, "expiry_date": expiry},
+                  "filename": filename[:240], "content_type": content_type, "blob": blob,
+                  "issued_date": issued, "expiry_date": expiry,
+                  "verification_status": "PENDING", "verification_note": ""},
     )
     append(
         aggregate=f"workflow.Draft.{draft.pk}",
@@ -119,49 +210,139 @@ def upload_draft_document(draft: SupplierRegistrationDraft, kind: str, file_sha2
 
 def add_draft_owner(draft: SupplierRegistrationDraft, owner_name: str, owner_rc: str, pct: Decimal, nin_hash: str = "", is_pep: bool = False):
     from workflow.models import DraftOwner
-    o, _ = DraftOwner.objects.update_or_create(draft=draft, owner_name=owner_name, defaults={"owner_rc": owner_rc, "pct": pct, "owner_nin_hash": nin_hash, "is_pep": is_pep})
+    _assert_editable(draft)
+    if not owner_name.strip():
+        raise ValidationError({"name": "The owner's name is required."})
+    if not (Decimal("0") < Decimal(str(pct)) <= Decimal("100")):
+        raise ValidationError({"pct": "Ownership percentage must be between 0 and 100."})
+    o, _ = DraftOwner.objects.update_or_create(draft=draft, owner_name=owner_name.strip(), defaults={"owner_rc": owner_rc, "pct": pct, "owner_nin_hash": nin_hash, "is_pep": is_pep})
     return o
 
 
+def duplicate_party(rc_number: str) -> Party | None:
+    """An active supplier already holding this RC number."""
+    if not rc_number:
+        return None
+    return Party.objects.filter(rc_number__iexact=rc_number.strip(), is_active=True).first()
+
+
 def submit_draft(draft: SupplierRegistrationDraft) -> SupplierRegistrationDraft:
+    if draft.status not in ("DRAFT", "REJECTED"):
+        raise ValidationError(f"This registration is already {draft.status.lower()}.")
     errs = draft.ready_to_submit()
     if errs:
-        raise ValidationError({"submission": f"Cannot submit: missing {', '.join(errs)}"})
+        raise ValidationError({"submission": "Cannot submit yet: " + "; ".join(errs)})
+    existing = duplicate_party(draft.rc_number)
+    if existing and existing.pk != getattr(draft.submitted_party, "pk", None):
+        raise ValidationError({
+            "rc_number": (
+                f"{existing.legal_name} is already registered with {draft.rc_number} "
+                f"(supplier #{existing.pk}). If this is your company, contact the Bureau "
+                "rather than registering twice."
+            )
+        })
     with transaction.atomic():
         draft.status = "SUBMITTED"
         draft.submitted_at = timezone.now()
         draft.save()
         append(aggregate=f"workflow.Draft.{draft.pk}", event_type="vendor.submitted", actor="vendor",
-               payload={"company": draft.company_name, "rc": draft.rc_number})
+               payload={"company": draft.company_name, "rc": draft.rc_number, "reference": draft.reference})
         _send_notification(kind=Notification.Kind.IN_APP, channel=Notification.Channel.IN_APP,
-                           recipient=draft.reviewer, recipient_email="bpp@tr.gov.ng",
-                           body=f"New vendor registration: {draft.company_name} (RC {draft.rc_number})",
+                           recipient=draft.reviewer, recipient_email=settings.CONTACT_EMAIL,
+                           body=f"New vendor registration {draft.reference}: {draft.company_name} (RC {draft.rc_number})",
                            reference_key=f"draft:{draft.pk}")
+        if draft.email or draft.phone:
+            _send_notification(kind=Notification.Kind.IN_APP, channel=Notification.Channel.EMAIL,
+                               recipient_email=draft.email, recipient_phone=draft.phone,
+                               body=(f"We received your registration {draft.reference} for {draft.company_name}. "
+                                     f"Keep the reference {draft.reference} — you will use it to track the review."),
+                               reference_key=f"draft:{draft.pk}")
     return draft
 
 
+def start_verification(draft: SupplierRegistrationDraft, reviewer: User) -> SupplierRegistrationDraft:
+    """A named officer takes the submission off the queue."""
+    if draft.status != "SUBMITTED":
+        raise ValidationError(f"Only submitted registrations can enter verification (this one is {draft.status}).")
+    if reviewer.role not in REVIEW_ROLES:
+        raise PermissionDenied("Only Bureau administrators may verify registrations.")
+    draft.status = "VERIFYING"
+    draft.reviewer = reviewer
+    draft.save(update_fields=["status", "reviewer", "updated_at"])
+    append(aggregate=f"workflow.Draft.{draft.pk}", event_type="vendor.verification_started",
+           actor=reviewer.username, payload={"reference": draft.reference})
+    return draft
+
+
+def decide_document(draft: SupplierRegistrationDraft, kind: str, accepted: bool, reviewer: User, note: str = "") -> DraftDocument:
+    """Reviewer accepts or refuses one certificate, with reasons when refusing."""
+    if draft.status not in ("SUBMITTED", "VERIFYING"):
+        raise ValidationError("Documents can only be decided while a registration is under review.")
+    if reviewer.role not in REVIEW_ROLES:
+        raise PermissionDenied("Only Bureau administrators may decide documents.")
+    dd = draft.documents.filter(kind=kind).first()
+    if not dd:
+        raise ValidationError({"kind": f"No {kind} document was attached to this registration."})
+    if not accepted and not note.strip():
+        raise ValidationError({"note": "Say why the document is refused — the vendor sees this text."})
+    if draft.status == "SUBMITTED":
+        start_verification(draft, reviewer)
+    dd.verification_status = "ACCEPTED" if accepted else "REJECTED"
+    dd.verification_note = note.strip()
+    dd.save(update_fields=["verification_status", "verification_note"])
+    append(aggregate=f"workflow.Draft.{draft.pk}", event_type="vendor.document_decided",
+           actor=reviewer.username, payload={"kind": kind, "accepted": accepted, "note": note[:200]})
+    return dd
+
+
+def _unapproved_required_docs(draft: SupplierRegistrationDraft) -> list[DraftDocument]:
+    required = draft.required_document_kinds()
+    return [dd for dd in draft.documents.filter(kind__in=required) if dd.verification_status != "ACCEPTED"]
+
+
 def approve_draft(draft: SupplierRegistrationDraft, reviewer: User) -> Party:
-    """Bureau approves the registration and creates the Party record with verifications."""
-    if draft.status != "SUBMITTED" and draft.status != "VERIFYING":
-        raise ValidationError("Only submitted drafts can be approved.")
+    """Bureau approves the registration and creates the Party record.
+
+    Only documents a reviewer explicitly ACCEPTED become PASSED verifications,
+    and each carries the reviewer and the date — the dated, attributable
+    assertion the design doc requires. Required documents nobody accepted block
+    approval instead of being silently waved through.
+    """
+    if draft.status not in ("SUBMITTED", "VERIFYING"):
+        raise ValidationError(f"Only submitted registrations can be approved (this one is {draft.status}).")
+    if reviewer.role not in REVIEW_ROLES:
+        raise PermissionDenied("Only Bureau administrators may approve registrations.")
+    undecided = _unapproved_required_docs(draft)
+    if undecided:
+        names = ", ".join(sorted({dd.get_kind_display() for dd in undecided}))
+        raise ValidationError(f"Before approving, accept or refuse each required certificate: {names}.")
+    existing = duplicate_party(draft.rc_number)
+    if existing and existing.pk != getattr(draft.submitted_party, "pk", None):
+        raise ValidationError(f"{existing.legal_name} already holds {draft.rc_number} on the register.")
+
     with transaction.atomic():
-        p, _ = Party.objects.get_or_create(
+        p, created = Party.objects.get_or_create(
             rc_number=draft.rc_number,
             defaults=dict(legal_name=draft.company_name, tin=draft.tin, pencom=draft.pencom, website=draft.website,
                           email=draft.email, phone=draft.phone, address=draft.address,
                           state=draft.state, lga=draft.lga, scope=draft.scope, category=draft.category,
                           year_incorporated=draft.year_incorporated, bo_declared=True, pep_flag=draft.pep_flag, is_active=True),
         )
+        if not created:
+            p.legal_name, p.tin, p.email, p.phone, p.category, p.scope, p.is_active = (
+                draft.company_name, draft.tin, draft.email, draft.phone, draft.category, draft.scope, True)
+            p.save()
         # Mirror owners
         for o in draft.owners.all():
             PartyOwnership.objects.get_or_create(party=p, owner_name=o.owner_name, defaults=dict(owner_rc_number=o.owner_rc, pct=o.pct, is_pep=o.is_pep))
-        # Mirror documents → PartyVerification (with a 30-day expiry check)
-        from datetime import date
-        for dd in draft.documents.filter(verification_status="PENDING", kind__in=["CAC", "TIN", "PENCOM", "BANK"]):
-            PartyVerification.objects.get_or_create(
-                party=p, kind=dd.kind,
-                defaults=dict(status=PartyVerification.PASSED, reference=f"REG:{draft.rc_number}:{dd.kind}",
-                              verified_at=timezone.now(), expires_at=dd.expiry_date or date.today().replace(year=date.today().year+1)),
+        # Mirror ACCEPTED documents → dated, attributable PASSED verifications.
+        for dd in draft.documents.filter(verification_status="ACCEPTED", kind__in=_DOC_TO_VERIFICATION):
+            PartyVerification.objects.update_or_create(
+                party=p, kind=_DOC_TO_VERIFICATION[dd.kind],
+                defaults=dict(status=PartyVerification.PASSED,
+                              reference=f"REG:{draft.reference}:{dd.kind}:{dd.sha256[:12]}",
+                              evidence_sha256=dd.sha256, verified_by=reviewer,
+                              verified_at=timezone.now(), expires_at=dd.expiry_date),
             )
         draft.status = "APPROVED"
         draft.reviewer = reviewer
@@ -169,17 +350,76 @@ def approve_draft(draft: SupplierRegistrationDraft, reviewer: User) -> Party:
         draft.submitted_party = p
         draft.save()
         append(aggregate=f"procurement.Party.{p.pk}", event_type="vendor.approved",
-               actor=reviewer.username, payload={"rc": p.rc_number, "lga": p.lga})
+               actor=reviewer.username, payload={"rc": p.rc_number, "lga": p.lga, "reference": draft.reference})
         _send_notification(kind=Notification.Kind.REG_APPROVED, channel=Notification.Channel.EMAIL,
                            recipient_email=draft.email, recipient_phone=draft.phone,
-                           body=f"Your registration {draft.company_name} (RC {draft.rc_number}) has been approved. You may now bid.",
+                           body=f"Your registration {draft.reference} ({draft.company_name}, RC {draft.rc_number}) has been approved. You may now bid.",
                            reference_key=f"party:{p.pk}")
         if draft.phone:
             _send_notification(kind=Notification.Kind.REG_APPROVED, channel=Notification.Channel.SMS,
                                recipient_phone=draft.phone,
-                               body=f"Taraba BPP: {draft.company_name} RC {draft.rc_number} approved. Visit procurement.taraba.gov.ng to bid.",
+                               body=f"Taraba BPP: registration {draft.reference} approved. {draft.company_name} may now bid.",
                                reference_key=f"party:{p.pk}")
     return p
+
+
+def reject_draft(draft: SupplierRegistrationDraft, reviewer: User, reason: str) -> SupplierRegistrationDraft:
+    """Reject with reasons the vendor actually receives — never a silent no."""
+    if draft.status not in ("SUBMITTED", "VERIFYING"):
+        raise ValidationError(f"Only submitted registrations can be rejected (this one is {draft.status}).")
+    if reviewer.role not in REVIEW_ROLES:
+        raise PermissionDenied("Only Bureau administrators may reject registrations.")
+    if not reason.strip():
+        raise ValidationError({"reason": "State what the vendor must fix — the rejection notice quotes this text."})
+    refused = list(draft.documents.filter(verification_status="REJECTED"))
+    with transaction.atomic():
+        draft.status = "REJECTED"
+        draft.reviewer = reviewer
+        draft.review_notes = reason.strip()
+        draft.reviewed_at = timezone.now()
+        draft.save()
+        append(aggregate=f"workflow.Draft.{draft.pk}", event_type="vendor.rejected",
+               actor=reviewer.username,
+               payload={"reference": draft.reference, "reason": reason[:300],
+                        "documents_refused": [d.kind for d in refused]})
+        body = (f"Your registration {draft.reference} ({draft.company_name}) was not approved. Reason: {reason.strip()} "
+                "Fix the items named above and submit a new registration — there is no fee.")
+        _send_notification(kind=Notification.Kind.REG_REJECTED, channel=Notification.Channel.EMAIL,
+                           recipient_email=draft.email, recipient_phone=draft.phone,
+                           body=body, reference_key=f"draft:{draft.pk}")
+        if draft.phone:
+            _send_notification(kind=Notification.Kind.REG_REJECTED, channel=Notification.Channel.SMS,
+                               recipient_phone=draft.phone,
+                               body=f"Taraba BPP: registration {draft.reference} not approved. Reason: {reason[:120]}",
+                               reference_key=f"draft:{draft.pk}")
+    return draft
+
+
+def suspend_expired_suppliers() -> list[Party]:
+    """Auto-suspend firms whose verified credentials have lapsed.
+
+    Design doc 3.2: suppliers are never approved once, trusted forever. A tax
+    clearance that expired in December stops proving anything in March, so the
+    register says "suspended" instead of still printing "verified". Runs as
+    `python manage.py suspend_expired_suppliers` from the nightly cron.
+    """
+    from datetime import date
+
+    lapsed_kinds = [PartyVerification.Kind.CAC, PartyVerification.Kind.TIN, PartyVerification.Kind.PENSION]
+    party_ids = set(
+        PartyVerification.objects.filter(
+            kind__in=lapsed_kinds, status=PartyVerification.PASSED,
+            expires_at__lt=date.today(), party__is_active=True,
+        ).values_list("party_id", flat=True)
+    )
+    suspended = []
+    for p in Party.objects.filter(pk__in=party_ids):
+        p.is_active = False
+        p.save(update_fields=["is_active", "updated_at"])
+        append(aggregate=f"procurement.Party.{p.pk}", event_type="vendor.suspended_credential_lapsed",
+               actor="system", payload={"rc": p.rc_number})
+        suspended.append(p)
+    return suspended
 
 
 # ============================================================= sealed bids

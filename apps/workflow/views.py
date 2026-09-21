@@ -10,7 +10,7 @@ from django.db.models import Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from procurement.models import (
     Award, Bid, Contract, ContractEvent, Objection, Tender,
@@ -66,54 +66,218 @@ def supplier_detail(request, pk: int):
     })
 
 
+REGISTRATION_STEPS = [
+    (1, "Company identity", "Legal name, RC number, TIN, incorporation year"),
+    (2, "Contact details", "Address, phone, email, contact person"),
+    (3, "Certificates", "CAC, TIN, PenCom documents with expiry dates"),
+    (4, "Capability", "Similar contracts, staff count, turnover, category"),
+    (5, "Beneficial ownership", "Owners with ≥5% share, PEP declarations"),
+    (6, "Review & submit", "Check everything, accept terms, submit"),
+]
+
+# Which draft fields each form step may write. Anything not listed here is
+# dropped by the view before it ever reaches the service — the form can only
+# say what the step is about.
+STEP_FIELDS = {
+    1: ["company_name", "rc_number", "tin", "pencom", "year_incorporated", "website"],
+    2: ["full_name", "email", "phone", "address", "state", "lga"],
+    4: ["category", "scope", "similar_contracts_n", "annual_turnover", "employees_count"],
+    5: ["related_party_declaration", "pep_flag"],
+    6: ["accept_terms"],
+}
+
+
 @require_GET
 def register_start(request):
-    """Supplier registration: step 1 landing page."""
-    return render(request, "register_start.html", {
-        "steps": [
-            (1, "Company identity", "Legal name, RC number, TIN, incorporation year"),
-            (2, "Contact details", "Address, phone, email, contact person"),
-            (3, "Certificates", "CAC, TIN, PenCom documents with expiry dates"),
-            (4, "Capability", "Similar contracts, annual turnover, category"),
-            (5, "Beneficial ownership", "Owners with ≥5% share, PEP declarations"),
-            (6, "Review & submit", "Check everything, accept terms, submit"),
-        ],
-    })
+    """Supplier registration: landing page and requirements."""
+    return render(request, "register_start.html", {"steps": REGISTRATION_STEPS})
+
+
+@require_POST
+def register_create(request):
+    """'Begin registration' pressed: create an empty draft and hand the vendor
+    their private link. No account, no fee, nothing published."""
+    from workflow.services import start_registration
+
+    draft = start_registration()
+    return redirect(f"/tenders/register/form/{draft.draft_token}/")
+
+
+def _registration_context(draft, step: int, errors: dict | None = None, values: dict | None = None):
+    from workflow.models import DraftDocument
+
+    return {
+        "draft": draft,
+        "token": draft.draft_token,
+        "step": step,
+        "steps": REGISTRATION_STEPS,
+        "steps_total": len(REGISTRATION_STEPS),
+        "documents": draft.documents.all(),
+        "owners": draft.owners.all(),
+        "ready": draft.ready_to_submit(),
+        "required_documents": sorted(draft.required_document_kinds()),
+        "doc_kinds": DraftDocument.Kind.choices,
+        "categories": Party.Category.choices,
+        "scopes": Party.Scope.choices,
+        "errors": errors or {},
+        "values": values or {},
+        "locked": draft.status != "DRAFT",
+    }
+
+
+@require_http_methods(["GET", "POST"])
+def register_form(request, token: str = ""):
+    """Multi-step registration form. The token is the draft's identity: an
+    unguessable 40-character link, so no account is needed and nothing is
+    published until step 6 is submitted."""
+    from workflow.models import SupplierRegistrationDraft
+
+    if request.method == "POST":
+        if not token:
+            return redirect("/tenders/register/")
+        return register_form_post(request, token)
+
+    if not token:
+        return render(request, "register_form.html", {
+            "draft": None, "step": 1, "steps": REGISTRATION_STEPS,
+            "steps_total": len(REGISTRATION_STEPS),
+        })
+    draft = get_object_or_404(SupplierRegistrationDraft, draft_token=token)
+    step = min(max(int(request.GET.get("step", draft.current_step)), 1), len(REGISTRATION_STEPS))
+    return render(request, "register_form.html", _registration_context(draft, step))
+
+
+@require_POST
+def register_form_post(request, token: str):
+    """All writes from the registration form land here.
+
+    One endpoint, one CSRF token, one `action` field deciding what happens —
+    the same pattern as the whistleblower intake. Every branch re-renders the
+    form with named errors on failure: nothing a vendor typed is ever lost.
+    """
+    from django.core.exceptions import ValidationError
+    from workflow.models import SupplierRegistrationDraft
+    from workflow.services import (
+        add_draft_owner, save_draft_step, submit_draft, upload_draft_document,
+    )
+
+    draft = get_object_or_404(SupplierRegistrationDraft, draft_token=token)
+    action = request.POST.get("action", "save")
+    step = min(max(int(request.POST.get("step", draft.current_step)), 1), len(REGISTRATION_STEPS))
+    errors: dict = {}
+    values = {k: request.POST.get(k, "") for k in STEP_FIELDS.get(step, [])}
+
+    try:
+        if action == "save":
+            payload = {k: request.POST.get(k, "") for k in STEP_FIELDS.get(step, [])}
+            if "pep_flag" in payload:
+                payload["pep_flag"] = request.POST.get("pep_flag") == "on"
+            if "accept_terms" in payload:
+                payload["accept_terms"] = request.POST.get("accept_terms") == "on"
+            save_draft_step(draft, step, payload)
+            return redirect(f"/tenders/register/form/{token}/?step={min(step + 1, len(REGISTRATION_STEPS))}")
+
+        elif action == "upload":
+            kind = request.POST.get("kind", "")
+            file = request.FILES.get("file")
+            if not file:
+                errors["file"] = "Choose the certificate file (scan or phone photo) before uploading."
+            else:
+                upload_draft_document(
+                    draft, kind,
+                    filename=file.name, content_type=file.content_type or "application/pdf",
+                    issued=request.POST.get("issued") or None,
+                    expiry=request.POST.get("expiry") or None,
+                    blob=file.read(),
+                )
+                return redirect(f"/tenders/register/form/{token}/?step=3")
+            step = 3
+
+        elif action == "remove_doc":
+            draft.documents.filter(kind=request.POST.get("kind", "")).delete()
+            return redirect(f"/tenders/register/form/{token}/?step=3")
+
+        elif action == "add_owner":
+            add_draft_owner(
+                draft, request.POST.get("owner_name", ""), request.POST.get("owner_rc", ""),
+                Decimal(request.POST.get("owner_pct") or "0"),
+                is_pep=request.POST.get("owner_pep") == "on",
+            )
+            return redirect(f"/tenders/register/form/{token}/?step=5")
+
+        elif action == "remove_owner":
+            draft.owners.filter(owner_name=request.POST.get("owner_name", "")).delete()
+            return redirect(f"/tenders/register/form/{token}/?step=5")
+
+        elif action == "submit":
+            draft.accept_terms = request.POST.get("accept_terms") == "on"
+            draft.save(update_fields=["accept_terms", "updated_at"])
+            submit_draft(draft)
+            return redirect(f"/tenders/register/done/{draft.draft_token}/")
+
+    except ValidationError as e:
+        errors = getattr(e, "message_dict", {"detail": e.messages})
+    except Exception:
+        errors = {"detail": ["Something went wrong saving that step. Nothing was lost — try again."]}
+
+    draft.refresh_from_db()
+    ctx = _registration_context(draft, step, errors, values)
+    return render(request, "register_form.html", ctx, status=400 if errors else 200)
 
 
 @require_GET
-def register_form(request, token: str = ""):
-    """Multi-step registration form. Token identifies the draft."""
+def register_done(request, token: str):
+    """Confirmation page immediately after submission: the reference number,
+    what happens next, and the private link to track progress."""
     from workflow.models import SupplierRegistrationDraft
 
-    draft = None
+    draft = get_object_or_404(SupplierRegistrationDraft, draft_token=token)
+    if draft.status == "DRAFT":
+        return redirect(f"/tenders/register/form/{token}/")
+    return render(request, "register_done.html", {"draft": draft})
+
+
+@require_http_methods(["GET", "POST"])
+def register_status(request, token: str = ""):
+    """The vendor's tracking page. Looked up either by the private link the
+    vendor kept, or by typing the reference + email they submitted with — a
+    vendor who lost the link is not locked out of their own application."""
+    from workflow.models import SupplierRegistrationDraft
+
+    drafts = None
+    lookup_error = ""
+    if request.method == "POST":
+        reference = (request.POST.get("reference") or "").strip().upper()
+        email = (request.POST.get("email") or "").strip().lower()
+        if reference and email:
+            drafts = SupplierRegistrationDraft.objects.filter(
+                reference=reference, email__iexact=email,
+            ).exclude(status="DRAFT")
+            if not drafts.exists():
+                lookup_error = ("No submitted registration matches that reference and email. "
+                                "Check both, or use the private link from your submission.")
+        else:
+            lookup_error = "Enter both the reference (e.g. VND-000042) and the email you registered with."
+
     if token:
         draft = get_object_or_404(SupplierRegistrationDraft, draft_token=token)
-
-    step = int(request.GET.get("step", draft.current_step if draft else 1))
-    documents = draft.documents.all() if draft else []
-    owners = draft.owners.all() if draft else []
-
-    return render(request, "register_form.html", {
-        "draft": draft,
-        "token": token,
-        "step": step,
-        "steps_total": 6,
-        "documents": documents,
-        "owners": owners,
-        "ready": draft.ready_to_submit() if draft else [],
-        "categories": Party.Category.choices,
-        "scopes": Party.Scope.choices,
+        return render(request, "register_status.html", {"draft": draft})
+    return render(request, "register_status.html", {
+        "draft": drafts.first() if drafts else None,
+        "all_matches": list(drafts) if drafts else [],
+        "lookup_error": lookup_error,
     })
 
 
 @require_GET
 def register_review_queue(request):
-    """Bureau review queue: pending supplier registrations. Shows verification
-    status and lets officers approve/reject."""
+    """Bureau review queue: pending supplier registrations. Public read,
+    authenticated write — the queue itself is a measured thing."""
     from workflow.models import SupplierRegistrationDraft
 
     status = request.GET.get("status", "SUBMITTED")
+    if status not in ("SUBMITTED", "VERIFYING", "APPROVED", "REJECTED"):
+        status = "SUBMITTED"
     drafts = SupplierRegistrationDraft.objects.filter(
         status=status
     ).prefetch_related("documents", "owners").order_by("-submitted_at", "-updated_at")
@@ -126,7 +290,79 @@ def register_review_queue(request):
             s: SupplierRegistrationDraft.objects.filter(status=s).count()
             for s in ["SUBMITTED", "VERIFYING", "APPROVED", "REJECTED"]
         },
+        "can_review": request.user.is_authenticated and getattr(request.user, "role", "") in ("ADMIN", "DG"),
     })
+
+
+@require_GET
+def register_review_detail(request, pk: int):
+    """One registration, everything about it, and the decision buttons."""
+    from workflow.models import SupplierRegistrationDraft
+    from workflow.services import REVIEW_ROLES
+
+    draft = get_object_or_404(
+        SupplierRegistrationDraft.objects.prefetch_related("documents", "owners"), pk=pk,
+    )
+    return render(request, "register_review_detail.html", {
+        "d": draft,
+        "required_documents": sorted(draft.required_document_kinds()),
+        "can_review": request.user.is_authenticated and getattr(request.user, "role", "") in REVIEW_ROLES,
+        "duplicate": _duplicate_party_for(draft),
+    })
+
+
+def _duplicate_party_for(draft):
+    from workflow.services import duplicate_party
+    existing = duplicate_party(draft.rc_number)
+    if existing and existing.pk != getattr(draft.submitted_party, "pk", None):
+        return existing
+    return None
+
+
+@require_POST
+def register_review_decide(request, pk: int):
+    """Reviewer decisions: accept/refuse each document, approve, reject.
+    ADMIN/DG only; everyone else gets the 403 page, not a 500."""
+    from django.core.exceptions import PermissionDenied, ValidationError
+    from workflow.models import SupplierRegistrationDraft
+    from workflow.services import (
+        REVIEW_ROLES, approve_draft, decide_document, reject_draft, start_verification,
+    )
+
+    draft = get_object_or_404(SupplierRegistrationDraft, pk=pk)
+    user = request.user
+    if not user.is_authenticated or getattr(user, "role", "") not in REVIEW_ROLES:
+        return render(request, "403.html", {
+            "message": "Reviewing registrations is limited to Bureau administrators (ADMIN or DG role).",
+        }, status=403)
+
+    action = request.POST.get("action", "")
+    error = ""
+    try:
+        if action == "verify_start":
+            start_verification(draft, user)
+        elif action == "accept_doc":
+            decide_document(draft, request.POST.get("kind", ""), True, user, request.POST.get("note", ""))
+        elif action == "refuse_doc":
+            decide_document(draft, request.POST.get("kind", ""), False, user, request.POST.get("note", ""))
+        elif action == "approve":
+            approve_draft(draft, user)
+        elif action == "reject":
+            reject_draft(draft, user, request.POST.get("reason", ""))
+    except PermissionDenied:
+        return render(request, "403.html", {"message": "That action needs a Bureau administrator account."}, status=403)
+    except ValidationError as e:
+        messages = getattr(e, "message_dict", None) or {"detail": e.messages}
+        error = " ".join(m for group in messages.values() for m in group)
+
+    draft.refresh_from_db()
+    return render(request, "register_review_detail.html", {
+        "d": draft,
+        "required_documents": sorted(draft.required_document_kinds()),
+        "can_review": True,
+        "duplicate": _duplicate_party_for(draft),
+        "error": error,
+    }, status=400 if error else 200)
 
 
 # ============================================================ Phase 2: Bidding

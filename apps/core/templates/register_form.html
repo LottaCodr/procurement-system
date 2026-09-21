@@ -1,108 +1,397 @@
 {% extends "base.html" %}{% load core_tags %}
-{% block title %}Supplier registration — step {{ step }} of {{ steps_total }}{% endblock %}
+{% block title %}Supplier registration{% if draft %} — step {{ step }} of {{ steps_total }}{% endif %}{% endblock %}
 
 {% block content %}
 <nav aria-label="Breadcrumb"><ol class="crumbs">
   <li><a href="/tenders/">Register</a></li>
   <li><a href="/tenders/register/">Supplier registration</a></li>
-  <li><span aria-current="page">Step {{ step }} of {{ steps_total }}</span></li>
+  <li><span aria-current="page">{% if draft %}Step {{ step }} of {{ steps_total }}{% else %}Start{% endif %}</span></li>
 </ol></nav>
+
+{% if not draft %}
+  <header class="page-head page-head--ruled">
+    <h1>Register your company</h1>
+    <p class="lede">Begin a new draft. It takes about twenty minutes, costs nothing, and nothing is
+    published until you submit it at the end.</p>
+  </header>
+  <form method="post" action="/tenders/register/create/">
+    {% csrf_token %}
+    <p><button class="btn" type="submit">Create my draft and start step 1</button></p>
+  </form>
+{% else %}
 
 <header class="page-head page-head--ruled">
   <h1>Register your company</h1>
-  <p class="lede">Step {{ step }} of {{ steps_total }}.
-  {% if draft %}Your draft was last saved {{ draft.updated_at|relative }} —
-    <span class="tiny">reference {{ draft.draft_token|truncatechars:10 }}…, status {{ draft.get_status_display }}.</span>
-  {% else %}Nothing is published until you submit, and your draft link is private.{% endif %}</p>
+  <p class="lede">Step {{ step }} of {{ steps_total }} — reference {{ draft.reference }}.
+  {% if locked %}
+    <span class="tag {% if draft.status == 'APPROVED' %}tag--open{% elif draft.status == 'REJECTED' %}tag--bad{% else %}tag--warn{% endif %}">{{ draft.get_status_display }}</span>
+  {% endif %}</p>
 </header>
 
 <ol class="steps" aria-label="Registration progress">
-  {% for number, title in steps %}
-    <li {% if number == step %}aria-current="step"{% elif number < step %}data-done="1"{% endif %}>
-      <strong>{{ number }}. {{ title }}</strong>
+  {% for number, title, description in steps %}
+    <li {% if number == step %}aria-current="step"{% elif number < draft.current_step %}data-done="1"{% endif %}>
+      <a href="/tenders/register/form/{{ token }}/?step={{ number }}">{{ number }}. {{ title }}</a>
     </li>
   {% endfor %}
 </ol>
 
+{% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1">
+    <h2>Fix these before continuing</h2>
+    <ul>
+      {% for field, messages in errors.items %}
+        {% for m in messages %}<li><strong>{{ field }}:</strong> {{ m }}</li>{% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+{% if locked %}
+  <div class="callout {% if draft.status == 'REJECTED' %}callout--bad{% elif draft.status == 'APPROVED' %}callout--ok{% else %}callout--warn{% endif %}">
+    <span class="callout__title">This registration is {{ draft.get_status_display|lower }} and can no longer be edited</span>
+    {% if draft.status == "REJECTED" %}
+      <p>Reason given by the reviewer: {{ draft.review_notes }}</p>
+      <p>Correct the problems named above and <a href="/tenders/register/">start a new registration</a> —
+      there is no fee, and your company is not blocked from trying again.</p>
+    {% elif draft.status == "APPROVED" %}
+      <p>Your company is on the <a href="/tenders/suppliers/">public supplier register</a>. If details need
+      to change, contact the Bureau quoting reference {{ draft.reference }}.</p>
+    {% else %}
+      <p>Submitted {{ draft.submitted_at|shortdate }}. <a href="/tenders/register/status/{{ token }}/">Track
+      the review here</a>. The queue and its waiting times are public.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
 <div class="grid grid--side">
   <div>
-    <section aria-labelledby="step-h">
-      <h2 id="step-h">What this step needs</h2>
-      {% if step == 1 %}
+    {% if not locked %}
+    {% if step == 1 %}
+      <form class="form" method="post" action="/tenders/register/form/{{ token }}/" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        <input type="hidden" name="step" value="1">
+        <h2>Company identity</h2>
         <p>Your company's legal identity, exactly as it appears on the CAC certificate. The legal name is
         published on the supplier register, so it must be the registered name rather than a trading name.</p>
-      {% elif step == 2 %}
+
+        <div class="field">
+          <label class="field__label" for="company_name">Registered company name</label>
+          <input id="company_name" name="company_name" type="text" maxlength="250" required
+                 value="{{ values.company_name|default:draft.company_name }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="rc_number">CAC registration number (RC / BN / GT)</label>
+          <span class="field__hint">As printed on your certificate, e.g. RC1234567. Business names use BN.</span>
+          <input id="rc_number" name="rc_number" type="text" maxlength="20" required autocapitalize="characters"
+                 value="{{ values.rc_number|default:draft.rc_number }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="tin">Tax Identification Number (TIN)</label>
+          <span class="field__hint">The 10-digit JTB TIN or the FIRS form 12345678-0001.</span>
+          <input id="tin" name="tin" type="text" maxlength="20" required inputmode="numeric"
+                 value="{{ values.tin|default:draft.tin }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="pencom">PenCom registration number (if you have one)</label>
+          <input id="pencom" name="pencom" type="text" maxlength="40"
+                 value="{{ values.pencom|default:draft.pencom }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="year_incorporated">Year incorporated</label>
+          <input id="year_incorporated" name="year_incorporated" type="number" min="1900" max="2100" class="field__input--narrow"
+                 value="{{ values.year_incorporated|default_if_none:draft.year_incorporated }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="website">Website (optional)</label>
+          <input id="website" name="website" type="url" value="{{ values.website|default:draft.website }}">
+        </div>
+        <p><button class="btn" type="submit">Save and continue to step 2</button></p>
+      </form>
+
+    {% elif step == 2 %}
+      <form class="form" method="post" action="/tenders/register/form/{{ token }}/" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        <input type="hidden" name="step" value="2">
+        <h2>Contact person</h2>
         <p>A named contact who answers. Notices go to this person by email and SMS, and it is the address
         the Bureau will use if it needs to reach you about a bid.</p>
-      {% elif step == 3 %}
-        <p>Your certificates, with expiry dates. The platform will suspend bidding if a certificate lapses,
-        so entering the real date protects you from losing a bid to a paperwork surprise.</p>
-      {% elif step == 4 %}
-        <p>What you are capable of: the number of similar contracts you have delivered, your annual
-        turnover, and the classification you are applying for.</p>
-      {% elif step == 5 %}
-        <p>Who owns the company. Anyone with 5% or more must be listed. If an owner is a politically
-        exposed person, that is declared here and published on your profile — declaring it is not a
-        disqualification, and concealing it is.</p>
-      {% else %}
-        <p>Check everything, then submit. You will receive a reference number and an itemised list of what
-        the reviewer still needs, if anything.</p>
-      {% endif %}
-      <p class="tiny">Saving is not submitting. Nothing appears in the public register until step 6 is
-      submitted and reviewed.</p>
-    </section>
 
-    {% if ready %}
-      <div class="callout callout--warn">
-        <span class="callout__title">Still outstanding before you can submit</span>
-        <ul>
-          {% for item in ready %}<li>{{ item }}</li>{% endfor %}
-        </ul>
-        <p>Each item names what is missing rather than failing silently. Nothing you have already typed is
-        lost.</p>
+        <div class="field">
+          <label class="field__label" for="full_name">Contact person's full name</label>
+          <input id="full_name" name="full_name" type="text" maxlength="200" required
+                 value="{{ values.full_name|default:draft.full_name }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="email">Email address</label>
+          <input id="email" name="email" type="email" required autocomplete="email"
+                 value="{{ values.email|default:draft.email }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="phone">Phone number (SMS notices go here)</label>
+          <input id="phone" name="phone" type="tel" required inputmode="tel"
+                 value="{{ values.phone|default:draft.phone }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="address">Business address</label>
+          <textarea id="address" name="address" rows="3" required>{{ values.address|default:draft.address }}</textarea>
+        </div>
+        <div class="field">
+          <label class="field__label" for="state">State</label>
+          <input id="state" name="state" type="text" maxlength="40"
+                 value="{{ values.state|default:draft.state }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="lga">Local government area</label>
+          <span class="field__hint">Taraba-domiciled firms get the local-content treatment, so be precise.</span>
+          <input id="lga" name="lga" type="text" maxlength="60"
+                 value="{{ values.lga|default:draft.lga }}">
+        </div>
+        <p><button class="btn" type="submit">Save and continue to step 3</button></p>
+      </form>
+
+    {% elif step == 3 %}
+      <h2>Certificates</h2>
+      <p>Attach your certificates with their expiry dates — scans or clear phone photographs, up to
+      5&nbsp;MB each. Required for your company:
+      {% for kind in required_documents %}<span class="tag">{{ kind }}</span> {% endfor %}.
+      ITF, NSITF, bank reference and capability documents are optional extras that strengthen your file.</p>
+
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Attached certificates">
+        <table class="data">
+          <caption>Certificates attached to this registration, with their expiry dates and review status.</caption>
+          <thead><tr>
+            <th scope="col">Certificate</th><th scope="col">File</th>
+            <th scope="col" class="hide-xs">Expiry</th><th scope="col">Status</th><th scope="col"></th>
+          </tr></thead>
+          <tbody>
+            {% for doc in documents %}
+              <tr>
+                <th scope="row">{{ doc.get_kind_display }}</th>
+                <td>{{ doc.filename }} <span class="tiny">{{ doc.size_bytes|filesizeformat }}, sha256 <span class="hash">{{ doc.sha256|truncatechars:14 }}</span></span></td>
+                <td class="hide-xs">{{ doc.expiry_date|shortdate|default:"—" }}</td>
+                <td>{{ doc.verification_status|status_tag }}</td>
+                <td>
+                  <form method="post" action="/tenders/register/form/{{ token }}/">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove_doc">
+                    <input type="hidden" name="kind" value="{{ doc.kind }}">
+                    <button class="btn btn--small btn--secondary" type="submit">Replace</button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="muted">Nothing attached yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    {% endif %}
 
-    <section aria-labelledby="docs-h">
-      <h2 id="docs-h">Documents attached ({{ documents|length }})</h2>
-      {% if documents %}
-        <ul>
-          {% for d in documents %}
-            <li>{{ d.get_kind_display|default:d.kind }} — {{ d.title|default:"document" }}
-              {% if d.expires_at %}<span class="tiny">expires {{ d.expires_at|shortdate }}</span>{% endif %}</li>
-          {% endfor %}
-        </ul>
+      <form class="form" method="post" action="/tenders/register/form/{{ token }}/" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload">
+        <h3>Attach a certificate</h3>
+        <div class="field">
+          <label class="field__label" for="kind">Which certificate is this?</label>
+          <select id="kind" name="kind" required>
+            {% for value, label in doc_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="file">The certificate file</label>
+          <span class="field__hint">PDF, JPG or PNG, up to 5 MB.</span>
+          <input id="file" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>
+        </div>
+        <div class="field">
+          <label class="field__label" for="expiry">Expiry date (if the certificate has one)</label>
+          <span class="field__hint">Tax clearances run to 31 December of their year. Entering the real date
+          protects you: an expired certificate suspends bidding automatically rather than failing a bid.</span>
+          <input id="expiry" name="expiry" type="date" class="field__input--narrow">
+        </div>
+        <p><button class="btn" type="submit">Attach this certificate</button></p>
+      </form>
+      <p><a class="btn btn--secondary" href="/tenders/register/form/{{ token }}/?step=4">Continue to step 4</a></p>
+
+    {% elif step == 4 %}
+      <form class="form" method="post" action="/tenders/register/form/{{ token }}/" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        <input type="hidden" name="step" value="4">
+        <h2>Capability &amp; classification</h2>
+        <p>What you are capable of, and which class of work you are registering for.</p>
+
+        <div class="field">
+          <label class="field__label" for="category">Category</label>
+          <select id="category" name="category" required>
+            <option value="">— choose —</option>
+            {% for value, label in categories %}
+              <option value="{{ value }}" {% if draft.category == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="scope">Scope</label>
+          <select id="scope" name="scope" required>
+            {% for value, label in scopes %}
+              <option value="{{ value }}" {% if draft.scope == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="employees_count">How many people does the company employ?</label>
+          <span class="field__hint">This decides which certificates you need: companies with fewer than 3
+          employees are exempt from PenCom by law, and companies with fewer than 5 are exempt from ITF.
+          Say the true number — it is checked against your certificates.</span>
+          <input id="employees_count" name="employees_count" type="number" min="0" max="100000" class="field__input--narrow"
+                 value="{{ values.employees_count|default_if_none:draft.employees_count }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="similar_contracts_n">Similar contracts completed (last 5 years)</label>
+          <input id="similar_contracts_n" name="similar_contracts_n" type="number" min="0" class="field__input--narrow"
+                 value="{{ values.similar_contracts_n|default_if_none:draft.similar_contracts_n }}">
+        </div>
+        <div class="field">
+          <label class="field__label" for="annual_turnover">Annual turnover, ₦ (optional)</label>
+          <input id="annual_turnover" name="annual_turnover" type="text" inputmode="numeric"
+                 value="{{ values.annual_turnover|default_if_none:draft.annual_turnover|default_if_none:'' }}">
+        </div>
+        <p><button class="btn" type="submit">Save and continue to step 5</button></p>
+      </form>
+
+    {% elif step == 5 %}
+      <h2>Beneficial ownership &amp; declarations</h2>
+      <p>Everyone who owns 5% or more of the company. Declaring a politically exposed owner is not a
+      disqualification — concealing one is.</p>
+
+      {% if owners %}
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Declared owners">
+          <table class="data">
+            <caption>Everyone declared as owning 5% or more of this company.</caption>
+            <thead><tr><th scope="col">Owner</th><th scope="col">Share</th><th scope="col">PEP</th><th scope="col"></th></tr></thead>
+            <tbody>
+              {% for o in owners %}
+                <tr>
+                  <th scope="row">{{ o.owner_name }}{% if o.owner_rc %} <span class="tiny">{{ o.owner_rc }}</span>{% endif %}</th>
+                  <td>{{ o.pct|pct }}</td>
+                  <td>{% if o.is_pep %}<span class="tag tag--warn">yes</span>{% else %}no{% endif %}</td>
+                  <td>
+                    <form method="post" action="/tenders/register/form/{{ token }}/">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="remove_owner">
+                      <input type="hidden" name="owner_name" value="{{ o.owner_name }}">
+                      <button class="btn btn--small btn--secondary" type="submit">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
-        <p class="muted">No document has been attached yet. Three are required: CAC, TIN and PenCom.</p>
+        <p class="muted">No owners declared yet — at least one is required before you can submit.</p>
       {% endif %}
-    </section>
 
-    {% if owners %}
-      <section aria-labelledby="owners-h">
-        <h2 id="owners-h">Beneficial owners ({{ owners|length }})</h2>
-        <ul>
-          {% for o in owners %}
-            <li>{{ o.owner_name|default:o.name }} — {{ o.pct|pct }}
-              {% if o.is_pep %}<span class="tag tag--warn">politically exposed</span>{% endif %}</li>
-          {% endfor %}
-        </ul>
-      </section>
+      <form class="form" method="post" action="/tenders/register/form/{{ token }}/" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_owner">
+        <h3>Add an owner</h3>
+        <div class="field">
+          <label class="field__label" for="owner_name">Owner's full name (or company name)</label>
+          <input id="owner_name" name="owner_name" type="text" maxlength="250" required>
+        </div>
+        <div class="field">
+          <label class="field__label" for="owner_rc">Owner's RC number (if the owner is a company)</label>
+          <input id="owner_rc" name="owner_rc" type="text" maxlength="20">
+        </div>
+        <div class="field">
+          <label class="field__label" for="owner_pct">Percentage owned</label>
+          <input id="owner_pct" name="owner_pct" type="number" min="0.01" max="100" step="0.01" required class="field__input--narrow">
+        </div>
+        <div class="field field--inline">
+          <input id="owner_pep" name="owner_pep" type="checkbox">
+          <label class="field__label" for="owner_pep">This owner is a politically exposed person (minister,
+          commissioner, judge, senior official, or their close relative)</label>
+        </div>
+        <p><button class="btn" type="submit">Add this owner</button></p>
+      </form>
+
+      <form class="form" method="post" action="/tenders/register/form/{{ token }}/" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        <input type="hidden" name="step" value="5">
+        <div class="field">
+          <label class="field__label" for="related_party_declaration">Any relationship to government officials? (optional)</label>
+          <span class="field__hint">Procurement law requires bidders to declare relationships to the officials
+          who award contracts. Declaring is published and is not a disqualification; concealing is.</span>
+          <textarea id="related_party_declaration" name="related_party_declaration" rows="3">{{ values.related_party_declaration|default:draft.related_party_declaration }}</textarea>
+        </div>
+        <div class="field field--inline">
+          <input id="pep_flag" name="pep_flag" type="checkbox" {% if draft.pep_flag %}checked{% endif %}>
+          <label class="field__label" for="pep_flag">A politically exposed person is among the owners listed above</label>
+        </div>
+        <p><button class="btn" type="submit">Save and continue to step 6</button></p>
+      </form>
+
+    {% else %}
+      <h2>Review &amp; submit</h2>
+      <p>Check everything below. Submitting sends the registration to the Bureau's review queue — the queue
+      and its waiting times are public, and you will get a reference number immediately.</p>
+
+      <dl>
+        <dt>Company</dt><dd>{{ draft.company_name|default:"—" }} ({{ draft.rc_number|default:"no RC" }} · TIN {{ draft.tin|default:"—" }})</dd>
+        <dt>Contact</dt><dd>{{ draft.full_name|default:"—" }} · {{ draft.email|default:"—" }} · {{ draft.phone|default:"—" }}</dd>
+        <dt>Address</dt><dd>{{ draft.address|default:"—" }}{% if draft.lga %}, {{ draft.lga }}{% endif %}{% if draft.state %}, {{ draft.state }}{% endif %}</dd>
+        <dt>Class</dt><dd>{{ draft.get_category_display|default:"—" }} · {{ draft.get_scope_display }} · {{ draft.employees_count|default_if_none:"staff count not given" }} employees</dd>
+        <dt>Certificates</dt><dd>{{ documents|length }} attached{% for doc in documents %} — {{ doc.kind }}{% endfor %}</dd>
+        <dt>Owners</dt><dd>{% for o in owners %}{{ o.owner_name }} ({{ o.pct|pct }}){% if not forloop.last %}; {% endif %}{% empty %}none declared{% endfor %}</dd>
+      </dl>
+
+      {% if ready %}
+        <div class="callout callout--warn">
+          <span class="callout__title">Still outstanding before you can submit</span>
+          <ul>{% for item in ready %}<li>{{ item }}</li>{% endfor %}</ul>
+          <p>Each item names what is missing rather than failing silently. Nothing you have already typed
+          is lost.</p>
+        </div>
+        <p><a class="btn btn--secondary" href="/tenders/register/form/{{ token }}/?step=1">Go back and fix these</a></p>
+      {% else %}
+        <form class="form" method="post" action="/tenders/register/form/{{ token }}/">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="submit">
+          <div class="field field--inline">
+            <input id="accept_terms" name="accept_terms" type="checkbox" required>
+            <label class="field__label" for="accept_terms">I confirm the information above is true, I am
+            authorised to register this company, and I understand that false declarations are an offence
+            under the Public Procurement Act.</label>
+          </div>
+          <p><button class="btn" type="submit">Submit registration</button></p>
+        </form>
+      {% endif %}
     {% endif %}
+    {% endif %}{# not locked #}
   </div>
 
   <aside aria-label="Registration help">
+    <div class="card">
+      <h2>Your private link</h2>
+      <p>This draft is held only by its link. Keep it — it is how you return to finish or track the
+      application. There is no account and no password.</p>
+      <p class="tiny hash">{{ token }}</p>
+      <p class="tiny">Saving is not submitting. Nothing appears in the public register until step 6 is
+      submitted and reviewed.</p>
+    </div>
     <div class="card">
       <h2>Stuck?</h2>
       <p>{% if CONTACT_PHONE_REAL %}Telephone <a href="tel:{{ CONTACT_PHONE }}">{{ CONTACT_PHONE }}</a>
       during {{ SUPPORT_HOURS }}, or visit{% else %}Visit{% endif %} an
       <a href="/tenders/agent-desk/">assisted bidding desk</a>. Desk staff can enter the form
-      with you; they cannot submit on your behalf or see your password.</p>
-    </div>
-    <div class="card">
-      <h2>Already registered?</h2>
-      <p><a href="/tenders/suppliers/">Check what the register shows about your company</a> — including
-      whether your certificates are recorded as current.</p>
+      with you; they cannot submit on your behalf.</p>
+      <p class="tiny">No one may charge a fee to register. Anyone who asks for one is committing an offence —
+      <a href="/tenders/whistleblower/">report it anonymously</a>.</p>
     </div>
   </aside>
 </div>
+{% endif %}{# draft #}
 {% endblock %}
