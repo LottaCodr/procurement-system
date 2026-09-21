@@ -284,7 +284,7 @@ LOGGING = {
 
 # ---------------------------------------------------------------- Phases 2-5: workflow
 INSTALLED_APPS += ["workflow"]
-SEALED_BID_DEMO = True   # set False in production once the key ceremony is rehearsed
+SEALED_BID_DEMO = env_flag("SEALED_BID_DEMO", "1")   # set False in production once the key ceremony is rehearsed
 OTP_SIGNING_KEY = os.environ.get("OTP_SIGNING_KEY", SECRET_KEY)
 RECEIPT_SIGNING_KEY = os.environ.get("RECEIPT_SIGNING_KEY", SECRET_KEY)
 SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "console")   # console | africastalking | termii
