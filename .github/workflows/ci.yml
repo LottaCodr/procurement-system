@@ -98,6 +98,11 @@ jobs:
         # link, the unconfigured value must never appear, and the service-status
         # page has to record the gap. This is a check on what the interface
         # does, not on what the environment happens to be set to.
+        #
+        # PYTHONPATH is set because `manage.py` adds `apps/` to sys.path for the
+        # steps above, and an inline `python -c` does not.
+        env:
+          PYTHONPATH: apps:.
         run: |
           python -c "
           import os
@@ -132,6 +137,7 @@ jobs:
         env:
           TARABA_HTTPS: "1"
           DJANGO_DEBUG: "0"
+          PYTHONPATH: apps:.
         run: |
           python -c "
           import os
@@ -157,6 +163,14 @@ jobs:
       - name: Install linters
         run: pip install ruff pip-audit
       - name: Ruff check
-        run: ruff check apps/ tests/ --select E,F,W --ignore E501,E741
+        # Print the findings as an annotation as well as the log, so a failure is
+        # readable in the pull request rather than only inside the job output.
+        run: |
+          set -o pipefail
+          if ! ruff check apps/ tests/ --select E,F,W --ignore E501,E741 --output-format concise; then
+            findings="$(ruff check apps/ tests/ --select E,F,W --ignore E501,E741 --output-format concise | head -25 | tr '\n' ';')"
+            echo "::error title=Ruff findings::${findings}"
+            exit 1
+          fi
       - name: pip-audit (known CVEs)
         run: pip-audit -r requirements.txt || true

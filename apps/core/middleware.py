@@ -10,7 +10,7 @@ import re
 import time
 
 from django.conf import settings
-from django.http import HttpResponsePermanentRedirect, JsonResponse
+from django.http import HttpResponsePermanentRedirect
 from django.utils.deprecation import MiddlewareMixin
 
 _PLACEHOLDER_PATTERNS = re.compile(r"(XXX|xxxx|TBD|TODO|FIXME|000 0000|placeholder|lorem)", re.I)
