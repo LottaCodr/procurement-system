@@ -33,6 +33,10 @@
       <ul>
         <li><strong>Your RC number and TIN.</strong> The platform checks both against the registries and
           records the check and its date on your file.</li>
+        <li><strong>Your certificates.</strong> CAC certificate and TIN/tax clearance are required for
+          everyone. A PenCom certificate is also required — unless you employ fewer than three people, in
+          which case the law does not apply to you and you simply say so. ITF and NSITF certificates are
+          welcome if you have them.</li>
         <li><strong>Certificate expiry dates.</strong> A tax clearance that lapses suspends your bidding
           automatically — it will not surprise you at a submission desk.</li>
         <li><strong>Your beneficial owners.</strong> Anyone holding 5% or more, with their percentage.
@@ -61,10 +65,13 @@
       <h2>Start or continue</h2>
       <p>You do not need an account to begin. Your draft is held against a private link, so nothing is
       published until you submit it.</p>
-      <p><a class="btn btn--block" href="/tenders/register/form/">Begin registration</a></p>
-      <p class="tiny">If you registered before and want to see your entries, use the private link you were
-      given when you saved. If you have lost it, telephone the Bureau and quote your company name and RC
-      number.</p>
+      <form method="post" action="/tenders/register/create/">
+        {% csrf_token %}
+        <button class="btn btn--block" type="submit">Begin registration</button>
+      </form>
+      <p class="tiny">Already submitted? <a href="/tenders/register/status/">Track your application</a> with
+      your reference number and the email you registered with. If you have lost both, telephone the Bureau
+      and quote your company name and RC number.</p>
     </div>
     <div class="card">
       <h2>Help with the form</h2>

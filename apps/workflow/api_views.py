@@ -7,7 +7,8 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth import authenticate, login
-from django.http import JsonResponse, HttpResponseForbidden
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404, JsonResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -21,14 +22,19 @@ from workflow.models import (
 )
 from workflow.services import (
     add_draft_owner,
+    approve_draft,
     client_encrypt_helper,
+    decide_document,
     file_whistleblower,
     enrol_totp,
+    reject_draft,
     save_draft_step,
     send_mfa_challenge,
     start_registration,
+    start_verification,
     submit_bid,
     submit_draft,
+    suspend_expired_suppliers,
     unseal_bids,
     upload_draft_document,
     verify_mfa,
@@ -46,50 +52,182 @@ def _u(request) -> User | None:
     return request.user if request.user.is_authenticated else None
 
 
+# ---------------------------------------------------------- vendor registration
+#
+# The write API for supplier onboarding. Vendor-side calls need no login (a
+# draft is held by an unguessable 40-character token); reviewer-side calls need
+# a session with an ADMIN/DG role. Errors come back as JSON with a 4xx code and
+# the specific field named — never a bare 500 the vendor cannot act on.
+
+
+def _draft_or_404(token: str) -> SupplierRegistrationDraft:
+    try:
+        return SupplierRegistrationDraft.objects.get(draft_token=token)
+    except SupplierRegistrationDraft.DoesNotExist:
+        raise Http404("No registration draft matches that link.")
+
+
+def _validation_error(e: Exception) -> JsonResponse:
+    messages = getattr(e, "message_dict", None) or {"detail": getattr(e, "messages", [str(e)])}
+    return JsonResponse({"ok": False, "errors": messages}, status=400)
+
+
 @require_POST
 @csrf_exempt
 def api_register_start(request):
     d = start_registration()
-    return JsonResponse({"draft_token": d.draft_token, "next_step": d.current_step})
+    return JsonResponse({"draft_token": d.draft_token, "reference": d.reference, "next_step": d.current_step})
 
 
 @require_POST
 @csrf_exempt
 def api_register_step(request, token: str):
     body = _json(request)
-    d = SupplierRegistrationDraft.objects.get(draft_token=token)
-    step = int(body.get("step", d.current_step))
-    save_draft_step(d, step, body.get("data", {}))
+    d = _draft_or_404(token)
+    try:
+        step = int(body.get("step", d.current_step))
+        save_draft_step(d, step, body.get("data", {}))
+    except ValidationError as e:
+        return _validation_error(e)
     return JsonResponse({"draft_token": d.draft_token, "next_step": d.current_step, "ready": not d.ready_to_submit()})
 
 
 @require_POST
 @csrf_exempt
 def api_register_document(request, token: str):
-    body = _json(request)
-    d = SupplierRegistrationDraft.objects.get(draft_token=token)
-    dd = upload_draft_document(d, body["kind"], body["sha256"], body["size_bytes"],
-                               body["obj_key"], body["filename"], body.get("content_type","application/pdf"),
-                               body.get("issued"), body.get("expiry"))
-    return JsonResponse({"ok": True, "kind": dd.kind})
+    """Attach a certificate. Two shapes: multipart with a real `file`, or JSON
+    metadata (sha256/size/obj_key) for clients that uploaded the file straight
+    to the object store."""
+    d = _draft_or_404(token)
+    try:
+        if request.FILES.get("file"):
+            f = request.FILES["file"]
+            dd = upload_draft_document(
+                d, request.POST.get("kind", ""), filename=f.name,
+                content_type=f.content_type or "application/pdf",
+                issued=request.POST.get("issued") or None, expiry=request.POST.get("expiry") or None,
+                blob=f.read(),
+            )
+        else:
+            body = _json(request)
+            dd = upload_draft_document(d, body["kind"], body["sha256"], body["size_bytes"],
+                                       body["obj_key"], body["filename"], body.get("content_type", "application/pdf"),
+                                       body.get("issued"), body.get("expiry"))
+    except ValidationError as e:
+        return _validation_error(e)
+    return JsonResponse({"ok": True, "kind": dd.kind, "sha256": dd.sha256, "size_bytes": dd.size_bytes})
 
 
 @require_POST
 @csrf_exempt
 def api_register_owner(request, token: str):
     body = _json(request)
-    d = SupplierRegistrationDraft.objects.get(draft_token=token)
-    add_draft_owner(d, body["name"], body.get("rc",""), Decimal(str(body.get("pct","0"))),
-                    body.get("nin_hash",""), bool(body.get("is_pep",False)))
+    d = _draft_or_404(token)
+    try:
+        add_draft_owner(d, body.get("name", ""), body.get("rc", ""), Decimal(str(body.get("pct", "0"))),
+                        body.get("nin_hash", ""), bool(body.get("is_pep", False)))
+    except ValidationError as e:
+        return _validation_error(e)
     return JsonResponse({"ok": True})
 
 
 @require_POST
 @csrf_exempt
 def api_register_submit(request, token: str):
-    d = SupplierRegistrationDraft.objects.get(draft_token=token)
-    submit_draft(d)
+    d = _draft_or_404(token)
+    try:
+        submit_draft(d)
+    except ValidationError as e:
+        return _validation_error(e)
+    return JsonResponse({"ok": True, "status": d.status, "reference": d.reference})
+
+
+@require_GET
+def api_register_status(request, token: str):
+    """The vendor's own view of their application, keyed by the private token."""
+    d = _draft_or_404(token)
+    required = sorted(d.required_document_kinds())
+    return JsonResponse({
+        "reference": d.reference,
+        "status": d.status,
+        "submitted_at": d.submitted_at,
+        "reviewed_at": d.reviewed_at,
+        "company_name": d.company_name,
+        "outstanding": d.ready_to_submit() if d.status == "DRAFT" else [],
+        "documents": {
+            dd.kind: {"status": dd.verification_status, "note": dd.verification_note,
+                      "expiry": str(dd.expiry_date) if dd.expiry_date else None}
+            for dd in d.documents.all()
+        },
+        "required_documents": required,
+        "review_notes": d.review_notes if d.status in ("REJECTED", "APPROVED") else "",
+    })
+
+
+def _reviewer(request) -> User:
+    u = _u(request)
+    if not u or u.role not in ("ADMIN", "DG"):
+        raise PermissionDenied("Only Bureau administrators (ADMIN/DG) may review registrations.")
+    return u
+
+
+@require_POST
+def api_register_verify_start(request, token: str):
+    d = _draft_or_404(token)
+    try:
+        start_verification(d, _reviewer(request))
+    except (ValidationError, PermissionDenied) as e:
+        if isinstance(e, PermissionDenied):
+            raise
+        return _validation_error(e)
     return JsonResponse({"ok": True, "status": d.status})
+
+
+@require_POST
+def api_register_decide_document(request, token: str):
+    body = _json(request)
+    d = _draft_or_404(token)
+    try:
+        dd = decide_document(d, body.get("kind", ""), bool(body.get("accepted")), _reviewer(request), body.get("note", ""))
+    except (ValidationError, PermissionDenied) as e:
+        if isinstance(e, PermissionDenied):
+            raise
+        return _validation_error(e)
+    return JsonResponse({"ok": True, "kind": dd.kind, "status": dd.verification_status})
+
+
+@require_POST
+def api_register_approve(request, token: str):
+    d = _draft_or_404(token)
+    try:
+        p = approve_draft(d, _reviewer(request))
+    except (ValidationError, PermissionDenied) as e:
+        if isinstance(e, PermissionDenied):
+            raise
+        return _validation_error(e)
+    return JsonResponse({"ok": True, "status": d.status, "party_id": p.pk, "rc_number": p.rc_number})
+
+
+@require_POST
+def api_register_reject(request, token: str):
+    body = _json(request)
+    d = _draft_or_404(token)
+    try:
+        reject_draft(d, _reviewer(request), body.get("reason", ""))
+    except (ValidationError, PermissionDenied) as e:
+        if isinstance(e, PermissionDenied):
+            raise
+        return _validation_error(e)
+    return JsonResponse({"ok": True, "status": d.status})
+
+
+@require_POST
+def api_suspend_expired_suppliers(request):
+    """Ops endpoint for the nightly job; equivalent to the management command."""
+    if not (_u(request) and _u(request).role == "ADMIN"):
+        raise PermissionDenied("ADMIN only.")
+    suspended = suspend_expired_suppliers()
+    return JsonResponse({"ok": True, "suspended": [p.rc_number for p in suspended]})
 
 
 @require_GET

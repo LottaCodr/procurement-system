@@ -15,6 +15,13 @@ urlpatterns = [
     path("vendor/register/<str:token>/document", wf.api_register_document),
     path("vendor/register/<str:token>/owner", wf.api_register_owner),
     path("vendor/register/<str:token>/submit", wf.api_register_submit),
+    path("vendor/register/<str:token>/status", wf.api_register_status),
+    # Reviewer actions (session auth, ADMIN/DG only)
+    path("vendor/register/<str:token>/verify-start", wf.api_register_verify_start),
+    path("vendor/register/<str:token>/decide-document", wf.api_register_decide_document),
+    path("vendor/register/<str:token>/approve", wf.api_register_approve),
+    path("vendor/register/<str:token>/reject", wf.api_register_reject),
+    path("vendor/suspend-expired", wf.api_suspend_expired_suppliers),
 
     # Sealed bidding
     path("tenders/<str:ocid>/sealing-key", wf.api_tender_sealing_key),

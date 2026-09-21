@@ -21,9 +21,11 @@ from workflow.services import (
     certify_payment,
     client_encrypt_helper,
     create_po,
+    decide_document,
     enrol_totp,
     file_objection,
     file_whistleblower,
+    reject_draft,
     save_draft_step,
     score_bid,
     start_registration,
@@ -50,10 +52,35 @@ def test_supplier_registration_approval_flow():
     d.save()
     assert not d.ready_to_submit()  # should now be empty
     submit_draft(d)
+    # Approval requires a named reviewer to have accepted each required
+    # certificate first — no automatic PASSED stamp.
+    for kind in ("CAC", "TIN", "PENCOM"):
+        decide_document(d, kind, True, dg, "checked against registry")
     p = approve_draft(d, dg)
     assert p.is_active
-    assert p.verifications.filter(kind="CAC", status="PASSED").exists()
+    v = p.verifications.get(kind="CAC", status="PASSED")
+    assert v.verified_by == dg and v.verified_at is not None  # dated, attributable
+    assert p.verifications.filter(kind="PENSION", status="PASSED").exists()  # PENCOM maps to PENSION
     assert p.owners.filter(owner_name="Ada Bello", pct=100).exists()
+
+
+@pytest.mark.django_db
+def test_supplier_registration_rejection_flow():
+    dg = User.objects.create_user("boss", "b@b.c", "pw", role="DG", mfa_secret="A"*32, mfa_enrolled_at=timezone.make_aware(datetime(2026,1,1)))
+    d = start_registration()
+    save_draft_step(d, 1, {"company_name":"Ghost Ltd","rc_number":"RC7000002","tin":"12345678-0001","category":"B"})
+    save_draft_step(d, 2, {"full_name":"G Host","email":"g@ghost.ng","phone":"08010000000","address":"nowhere"})
+    for kind, h in (("CAC","d"*64),("TIN","e"*64),("PENCOM","f"*64)):
+        upload_draft_document(d, kind, h, 1000, f"obj:{kind}.pdf", f"{kind}.pdf", "application/pdf")
+    add_draft_owner(d, "G Host", "", Decimal("100.0"))
+    d.accept_terms = True
+    d.save()
+    submit_draft(d)
+    reject_draft(d, dg, "TIN does not match the FIRS record for this RC number.")
+    d.refresh_from_db()
+    assert d.status == "REJECTED" and "FIRS" in d.review_notes
+    from workflow.models import Notification
+    assert Notification.objects.filter(kind="REG_NO", recipient_email="g@ghost.ng").exists()
 
 
 @pytest.mark.django_db

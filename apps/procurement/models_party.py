@@ -265,6 +265,8 @@ class PartyVerification(models.Model):
         CAC = "CAC", "Corporate affairs (CAC registry)"
         TIN = "TIN", "Tax identification (FIRS)"
         PENSION = "PENSION", "PenCom certificate"
+        ITF = "ITF", "Industrial Training Fund compliance"
+        NSITF = "NSITF", "NSITF employee-compensation compliance"
         BANK = "BANK", "NUBAN account-name match"
         BO = "BO", "Beneficial ownership"
         DEBARMENT = "DEBARMENT", "Debarment/exclusion screening"

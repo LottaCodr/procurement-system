@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Registration received — {{ draft.reference }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/register/">Supplier registration</a></li>
+  <li><span aria-current="page">Received</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>Your registration has been received</h1>
+  <p class="lede">{{ draft.company_name }} was submitted
+  {{ draft.submitted_at|shortdate }}. Nothing has been published yet — the Bureau reviews first.</p>
+</header>
+
+<div class="verify">
+  <h2>Your reference: {{ draft.reference }}</h2>
+  <p>Write this down. It is how you and the Bureau talk about this application — on the phone, by SMS,
+  and on the tracking page.</p>
+  <p class="hash">Private tracking link: /tenders/register/status/{{ draft.draft_token }}/</p>
+</div>
+
+<div class="grid grid--2">
+  <section>
+    <h2>What happens next</h2>
+    <ol class="timeline">
+      <li data-state="done"><span class="timeline__label">Submitted</span>
+        <span class="timeline__meta">{{ draft.submitted_at|shortdate }} — reference {{ draft.reference }} issued.</span></li>
+      <li data-state="current"><span class="timeline__label">Bureau review</span>
+        <span class="timeline__meta">An officer checks your RC and TIN against the CAC and FIRS records and
+        accepts or refuses each certificate, with reasons. The check, its date and the officer's role are
+        recorded on your file.</span></li>
+      <li><span class="timeline__label">Decision</span>
+        <span class="timeline__meta">Approved — you appear on the <a href="/tenders/suppliers/">supplier
+        register</a> and can bid. Or refused — you are told exactly what to fix and may submit again free of
+        charge. You will be notified by email{% if draft.phone %} and SMS{% endif %}.</span></li>
+    </ol>
+  </section>
+  <aside aria-label="Keep these">
+    <div class="card">
+      <h2>Keep both of these</h2>
+      <p><strong>Reference:</strong> {{ draft.reference }}</p>
+      <p><strong>Private link:</strong><br>
+      <a href="/tenders/register/status/{{ draft.draft_token }}/">/tenders/register/status/{{ draft.draft_token|truncatechars:18 }}…</a></p>
+      <p class="tiny">The reference is safe to share; the link is private and lets whoever holds it see the
+      application, so treat it like a password. If you lose the link, you can still track the application
+      with the reference plus the email you registered with.</p>
+    </div>
+    <div class="card">
+      <h2>Review targets</h2>
+      <p>The Bureau's review queue and its waiting times are public:
+      <a href="/tenders/register/review/">see the queue</a>. If your application sits unreviewed for more
+      than two weeks, the queue page itself is the evidence — and the
+      <a href="/tenders/whistleblower/">whistleblower channel</a> exists for anything worse than delay.</p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

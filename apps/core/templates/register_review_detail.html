@@ -1,0 +1,151 @@
+{% extends "base.html" %}{% load core_tags %}
+{% block title %}Review {{ d.reference }} — {{ d.company_name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Breadcrumb"><ol class="crumbs">
+  <li><a href="/tenders/">Register</a></li>
+  <li><a href="/tenders/register/review/">Review queue</a></li>
+  <li><span aria-current="page">{{ d.reference }}</span></li>
+</ol></nav>
+
+<header class="page-head page-head--ruled">
+  <h1>{{ d.company_name|default:"(no name entered)" }} <span class="tiny">{{ d.reference }}</span></h1>
+  <p class="lede">{{ d.get_status_display }}
+  {% if d.submitted_at %}· submitted {{ d.submitted_at|shortdate }} ({{ d.submitted_at|relative }}){% endif %}
+  {% if d.reviewer %}· reviewer: {{ d.reviewer.username }}{% endif %}</p>
+</header>
+
+{% if error %}
+  <div class="callout callout--bad"><span class="callout__title">Cannot do that yet</span><p>{{ error }}</p></div>
+{% endif %}
+
+{% if duplicate %}
+  <div class="callout callout--warn">
+    <span class="callout__title">Possible duplicate</span>
+    <p><a href="/tenders/suppliers/{{ duplicate.pk }}/">{{ duplicate.legal_name }}</a> already holds
+    {{ d.rc_number }} on the supplier register. Approving this application will update that record rather
+    than create a second one — confirm that is what the applicant wants.</p>
+  </div>
+{% endif %}
+
+<div class="grid grid--side">
+  <div>
+    <section aria-labelledby="facts-h">
+      <h2 id="facts-h">As submitted</h2>
+      <dl>
+        <dt>Legal name</dt><dd>{{ d.company_name|default:"—" }}</dd>
+        <dt>RC number</dt><dd>{{ d.rc_number|default:"—" }}</dd>
+        <dt>TIN</dt><dd>{{ d.tin|default:"—" }}</dd>
+        <dt>PenCom ref</dt><dd>{{ d.pencom|default:"—" }}</dd>
+        <dt>Incorporated</dt><dd>{{ d.year_incorporated|default:"—" }}</dd>
+        <dt>Contact</dt><dd>{{ d.full_name|default:"—" }} · {{ d.email|default:"—" }} · {{ d.phone|default:"—" }}</dd>
+        <dt>Address</dt><dd>{{ d.address|default:"—" }}{% if d.lga %}, {{ d.lga }}{% endif %}, {{ d.state }}</dd>
+        <dt>Class</dt><dd>{{ d.get_category_display|default:"—" }} · {{ d.get_scope_display }}</dd>
+        <dt>Employees</dt><dd>{{ d.employees_count|default_if_none:"not stated" }}{% if d.employees_count is not None and d.employees_count < 3 %} <span class="tag tag--warn">PenCom exempt (&lt;3 staff)</span>{% endif %}</dd>
+        <dt>Capability</dt><dd>{{ d.similar_contracts_n }} similar contracts · turnover ₦{{ d.annual_turnover|default:"—" }}</dd>
+        <dt>Related-party declaration</dt><dd>{{ d.related_party_declaration|default:"none declared" }}</dd>
+        <dt>PEP flag</dt><dd>{% if d.pep_flag %}<span class="tag tag--warn">yes — politically exposed owner declared</span>{% else %}no{% endif %}</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="owners-h">
+      <h2 id="owners-h">Beneficial owners</h2>
+      {% if d.owners.all %}
+        <ul>
+          {% for o in d.owners.all %}
+            <li>{{ o.owner_name }}{% if o.owner_rc %} ({{ o.owner_rc }}){% endif %} — {{ o.pct|pct }}
+            {% if o.is_pep %}<span class="tag tag--warn">PEP</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      {% else %}<p class="muted">None declared.</p>{% endif %}
+    </section>
+
+    <section aria-labelledby="docs-h">
+      <h2 id="docs-h">Certificates</h2>
+      <p class="tiny">Required for this applicant: {% for kind in required_documents %}<span class="tag">{{ kind }}</span> {% endfor %}.
+      Accepting a certificate records a dated, attributable verification on the supplier profile; refusing
+      it requires a reason the applicant will see.</p>
+      {% for doc in d.documents.all %}
+        <div class="card">
+          <h3>{{ doc.get_kind_display }} {{ doc.verification_status|status_tag }}</h3>
+          <p class="filemeta">{{ doc.filename }} · {{ doc.size_bytes|filesizeformat }} · sha256
+          <span class="hash">{{ doc.sha256 }}</span>
+          {% if doc.expiry_date %} · expires {{ doc.expiry_date|shortdate }}{% endif %}</p>
+          {% if doc.verification_note %}<p class="tiny">Reviewer note: {{ doc.verification_note }}</p>{% endif %}
+          {% if can_review and d.status != "APPROVED" and d.status != "REJECTED" %}
+            <form class="form" method="post" action="/tenders/register/review/{{ d.pk }}/decide/">
+              {% csrf_token %}
+              <input type="hidden" name="kind" value="{{ doc.kind }}">
+              <div class="field">
+                <label class="field__label" for="note-{{ doc.kind }}">Note (required if refusing)</label>
+                <input id="note-{{ doc.kind }}" name="note" type="text" maxlength="300">
+              </div>
+              <p>
+                <button class="btn btn--small" type="submit" name="action" value="accept_doc">Accept</button>
+                <button class="btn btn--small btn--secondary" type="submit" name="action" value="refuse_doc">Refuse</button>
+              </p>
+            </form>
+          {% endif %}
+        </div>
+      {% empty %}
+        <p class="muted">No certificates attached.</p>
+      {% endfor %}
+    </section>
+  </div>
+
+  <aside aria-label="Decision">
+    {% if can_review %}
+      {% if d.status == "SUBMITTED" %}
+        <div class="card">
+          <h2>Start the review</h2>
+          <p>Taking it off the queue records that a named officer is verifying it.</p>
+          <form method="post" action="/tenders/register/review/{{ d.pk }}/decide/">
+            {% csrf_token %}
+            <button class="btn btn--block" type="submit" name="action" value="verify_start">Start verification</button>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if d.status == "SUBMITTED" or d.status == "VERIFYING" %}
+        <div class="card">
+          <h2>Approve</h2>
+          <p>Creates the supplier record and copies each accepted certificate onto the public profile as a
+          dated verification. Every required certificate must be accepted first.</p>
+          <form method="post" action="/tenders/register/review/{{ d.pk }}/decide/">
+            {% csrf_token %}
+            <button class="btn btn--block" type="submit" name="action" value="approve">Approve registration</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>Reject</h2>
+          <form method="post" action="/tenders/register/review/{{ d.pk }}/decide/">
+            {% csrf_token %}
+            <div class="field">
+              <label class="field__label" for="reason">Reason — sent to the applicant verbatim</label>
+              <textarea id="reason" name="reason" rows="4" required></textarea>
+            </div>
+            <button class="btn btn--block btn--secondary" type="submit" name="action" value="reject">Reject registration</button>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if d.status == "APPROVED" %}
+        <div class="callout callout--ok"><span class="callout__title">Approved</span>
+          <p>{{ d.reviewed_at|shortdate }} by {{ d.reviewer.username }}.
+          {% if d.submitted_party %}<a href="/tenders/suppliers/{{ d.submitted_party.pk }}/">Public profile</a>{% endif %}</p>
+        </div>
+      {% elif d.status == "REJECTED" %}
+        <div class="callout callout--bad"><span class="callout__title">Rejected</span>
+          <p>{{ d.reviewed_at|shortdate }} by {{ d.reviewer.username }}. Reason sent: {{ d.review_notes }}</p>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="card">
+        <h2>Read-only</h2>
+        <p>Decisions need a Bureau administrator session (ADMIN or DG role). The queue itself is public:
+        anyone can see what is waiting and for how long.</p>
+      </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

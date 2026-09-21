@@ -50,6 +50,15 @@ Then browse:
 - http://localhost:8000/api/v1/schema — OpenAPI 3.1
 - http://localhost:8000/api/v1/releases?validate=1 — NDJSON OCDS release feed
 
+## Deploy on Vercel
+
+`vercel.json` + `build.py` are wired for Vercel's Django preset (serverless
+function at `config/asgi.py`, migrations on production deploys only). Requires
+a hosted Postgres via `DATABASE_URL` — the filesystem there is ephemeral, so
+dev `db.sqlite3` cannot be used. Full walkthrough: **`docs/deploy-vercel.md`**.
+Remember DESIGN Part 9 risk 3: state-owned accounts, or it is Kano with
+better fonts.
+
 ## Where things live
 
 ```
@@ -99,7 +108,7 @@ tests/              # Phase 2: property tests on the state machine + concurrency
 
 Phase 1 ships the **transparency spine** so a journalist/auditor can verify every contract without permission, and so the state cannot edit a tender after publication. The design document outlines Phases 2–5; the next concrete deliverables are:
 
-1. **Supplier workspace** (Phase 2): authenticated self-service registration, CAC/FIRS real verification, expiry-reverify, sealed-bid submission with the 3-of-4 key ceremony, bid-receipt PDF, SMS/WhatsApp alerts.
+1. **Supplier workspace** (Phase 2): **vendor registration is live** — the six-step public flow at `/tenders/register/` (free, no account, draft-by-private-link, real certificate uploads, PenCom exemption for micro-employers), the Bureau review queue at `/tenders/register/review/`, vendor status tracking, and auto-suspension of lapsed credentials (`annual_reverification`). Remaining: *live* CAC/FIRS API lookups (checks are manual-but-attributed today), SMS gateway wiring, supplier logins. See `docs/vendor-registration.md`. Sealed-bid submission with the 3-of-4 key ceremony, bid-receipt PDF, SMS/WhatsApp alerts.
 2. **PDE / evaluator dashboards** (Phase 3): committee seat at opening, scored evaluation, dissent capture, award notice draft.
 3. **Appeals & whistleblower** (Phase 3): anonymous intake, panel half-nominated by CSO, freeze button.
 4. **Contract → CRAC → payment certification** (Phase 4): the payment lock with Treasury — the single most effective adoption lever.

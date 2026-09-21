@@ -56,9 +56,15 @@ urlpatterns = [
     path("suppliers/", views.supplier_list, name="suppliers"),
     path("suppliers/<int:pk>/", wf_views.supplier_detail, name="supplier-detail"),
     path("register/", wf_views.register_start, name="register-start"),
+    path("register/create/", wf_views.register_create, name="register-create"),
     path("register/form/", wf_views.register_form, name="register-form"),
     path("register/form/<str:token>/", wf_views.register_form, name="register-form-token"),
+    path("register/done/<str:token>/", wf_views.register_done, name="register-done"),
+    path("register/status/", wf_views.register_status, name="register-status"),
+    path("register/status/<str:token>/", wf_views.register_status, name="register-status-token"),
     path("register/review/", wf_views.register_review_queue, name="register-review"),
+    path("register/review/<int:pk>/", wf_views.register_review_detail, name="register-review-detail"),
+    path("register/review/<int:pk>/decide/", wf_views.register_review_decide, name="register-review-decide"),
     path("ratings/", wf_views.supplier_ratings, name="ratings"),
 
     # --- open data and accountability --------------------------------------
