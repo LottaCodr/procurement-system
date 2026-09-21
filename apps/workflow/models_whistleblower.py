@@ -1,4 +1,5 @@
 """Whistleblower case tracking model."""
+from django.conf import settings
 from django.db import models
 import secrets
 
@@ -24,7 +25,7 @@ class WhistleblowerCase(models.Model):
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='RECEIVED')
     assigned_to = models.ForeignKey(
-        'auth.User', on_delete=models.SET_NULL,
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='whistleblower_cases'
     )
     created_at = models.DateTimeField(auto_now_add=True)
