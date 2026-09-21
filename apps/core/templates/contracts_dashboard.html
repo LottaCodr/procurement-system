@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Contracts dashboard{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Contracts dashboard</h1>
+  <div class="metrics">
+    <div class="metric"><span class="num">{{ contracts.count }}</span><span class="lbl">Total contracts</span></div>
+    <div class="metric"><span class="num">{{ active_count }}</span><span class="lbl">Active</span></div>
+    <div class="metric"><span class="num">{{ paid_count }}</span><span class="lbl">Paid</span></div>
+    <div class="metric"><span class="num">₦{{ total_value|floatformat:0 }}</span><span class="lbl">Total value</span></div>
+    {% if defaulted_count %}<div class="metric"><span class="num bad">{{ defaulted_count }}</span><span class="lbl">Defaulted</span></div>{% endif %}
+  </div>
+</div>
+
+{% if high_variation %}
+<div class="card">
+  <h2>⚠ High variation contracts (>10%)</h2>
+  <table class="data">
+    <thead><tr><th>Contract</th><th>Supplier</th><th>Value</th><th>Variation %</th><th>Agency</th></tr></thead>
+    <tbody>
+    {% for c, vp in high_variation %}
+    <tr>
+      <td><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></td>
+      <td><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></td>
+      <td>₦{{ c.value|floatformat:2 }}</td>
+      <td><span class="badge bad">{{ vp }}%</span></td>
+      <td>{{ c.award.tender.agency.code }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>All contracts</h2>
+  <div class="filters">
+    {% for code, label in statuses %}
+    <a href="?status={{ code }}" class="btn {% if status_filter == code %}primary{% endif %}">{{ label }}</a>
+    {% endfor %}
+    <a href="/tenders/contracts/" class="btn">All</a>
+  </div>
+  <table class="data">
+    <thead><tr><th>Reference</th><th>Supplier</th><th>Value</th><th>Status</th><th>Signed</th><th>Duration</th></tr></thead>
+    <tbody>
+    {% for c in contracts %}
+    <tr>
+      <td><a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a></td>
+      <td><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></td>
+      <td>₦{{ c.value|floatformat:2 }}</td>
+      <td><span class="badge">{{ c.get_status_display }}</span></td>
+      <td>{{ c.signed_at|date:"d M Y" }}</td>
+      <td>{{ c.duration_days }}d</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

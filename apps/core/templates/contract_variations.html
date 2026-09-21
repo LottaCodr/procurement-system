@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Variations — {{ c.reference }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/contracts/">Contracts</a> &rsaquo;
+  <a href="/tenders/contracts/{{ c.reference }}/">{{ c.reference }}</a> &rsaquo; Variations
+</nav>
+<div class="card">
+  <h1>Contract variations — {{ c.reference }}</h1>
+  <p>Total variation: <strong>{{ total_pct }}%</strong> of signed value (₦{{ c.value|floatformat:2 }}).
+  Variations exceeding 10% trigger red-flag indicator T10 and require a higher approving authority.</p>
+</div>
+{% for v in variations %}
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <h3>{{ v.title }}</h3>
+      <dl>
+        <dt>Amount change</dt><dd>₦{{ v.amount_change|floatformat:2 }}</dd>
+        <dt>% of contract</dt><dd>{{ v.pct_of_contract }}%</dd>
+        <dt>Time change</dt><dd>{% if v.time_change_days %}{{ v.time_change_days }} days{% else %}—{% endif %}</dd>
+        <dt>Status</dt><dd><span class="badge">{{ v.get_status_display }}</span></dd>
+        {% if v.alarm_triggered %}<dt class="bad">⚠ Alarm</dt><dd class="bad">Variation exceeds 10% threshold</dd>{% endif %}
+      </dl>
+    </div>
+    <div>
+      <h4>Reason</h4>
+      <p>{{ v.reason }}</p>
+      <p class="tiny">Proposed {{ v.proposed_at|date:"d M Y" }}{% if v.approved_by %} · Approved {{ v.approved_at|date:"d M Y" }} by {{ v.approved_by.get_full_name|default:v.approved_by.username }}{% endif %}</p>
+    </div>
+  </div>
+</div>
+{% empty %}
+<div class="card"><p class="muted">No variations recorded for this contract.</p></div>
+{% endfor %}
+{% endblock %}

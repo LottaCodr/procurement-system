@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Bid receipt — {{ receipt_ref }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Bid submission receipt</h1>
+  <div class="receipt">
+    <dl>
+      <dt>Receipt reference</dt><dd><code>{{ receipt_ref }}</code></dd>
+      <dt>Tender</dt><dd><a href="/tenders/{{ tender.ocid }}/">{{ tender.ocid }}</a> — {{ tender.title }}</dd>
+      <dt>Agency</dt><dd>{{ tender.agency.name }} ({{ tender.agency.code }})</dd>
+      <dt>Supplier</dt><dd>{{ bid.supplier.legal_name }} (RC {{ bid.supplier.rc_number }})</dd>
+      <dt>Submitted at</dt><dd>{{ bid.submitted_at|date:"d M Y H:i:s" }} UTC</dd>
+      <dt>Late?</dt><dd>{% if bid.late %}<span class="badge bad">Yes</span>{% else %}<span class="badge ok">No</span>{% endif %}</dd>
+      <dt>Commitment hash</dt><dd><code>{{ bid.commitment_hash }}</code></dd>
+      <dt>Status</dt><dd><span class="badge">{{ bid.get_status_display }}</span></dd>
+    </dl>
+
+    <div class="alert ok">
+      <strong>This receipt is your proof of submission.</strong> The commitment hash above was published the instant
+      your bid was received. At the public bid opening, this hash will be verified against the decrypted bid content.
+      Any discrepancy is provable on screen.
+    </div>
+
+    <p class="tiny">Verification: <code>sha256({{ tender.ocid }}|{{ bid.supplier.rc_number }}|amount|envelope_sha256|{{ bid.submitted_at|date:"U" }})</code></p>
+  </div>
+</div>
+{% endblock %}

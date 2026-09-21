@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Debriefs — {{ t.ocid }}{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/">Tenders</a> &rsaquo;
+  <a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a> &rsaquo; Debriefs
+</nav>
+
+<div class="card">
+  <h1>Debrief requests</h1>
+  <p>Losing bidders have a statutory right to request a debrief within 10 working days.
+  The response is published. This is how a losing bidder learns why they did not win —
+  and how the public verifies the evaluation was fair.</p>
+</div>
+
+{% for d in debriefs %}
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <h3>{{ d.supplier.legal_name }}</h3>
+      <dl>
+        <dt>Award</dt><dd>₦{{ d.award.amount|floatformat:2 }} to {{ d.award.bid.supplier.legal_name }}</dd>
+        <dt>Requested</dt><dd>{{ d.requested_at|date:"d M Y H:i" }}</dd>
+        <dt>Due by</dt><dd>{{ d.due_by|date:"d M Y H:i" }}</dd>
+        <dt>Status</dt>
+        <dd><span class="badge {% if d.status == 'COMPLETED' %}ok{% elif d.status == 'OVERDUE' %}bad{% endif %}">{{ d.get_status_display }}</span></dd>
+      </dl>
+    </div>
+    <div>
+      {% if d.questions %}<h4>Questions</h4><p>{{ d.questions }}</p>{% endif %}
+      {% if d.response %}<h4>Response</h4><p>{{ d.response }}</p>
+      <p class="tiny">Responded {{ d.responded_at|date:"d M Y" }} by {{ d.responded_by.get_full_name|default:d.responded_by.username }}</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% empty %}
+<div class="card"><p class="muted">No debrief requests have been filed.</p></div>
+{% endfor %}
+{% endblock %}

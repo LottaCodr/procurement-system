@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Agent-assisted bidding desk{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Agent-assisted bidding desk</h1>
+  <p>Physical desks at the Bureau and each Senatorial zone hub assist suppliers who lack internet access
+  or devices. All actions use the same API with an <code>acted_on_behalf_of</code> field — never a separate,
+  unaudited back channel.</p>
+  <div class="grid-2">
+    <div>
+      <h3>Locations</h3>
+      <ul>{% for l in lgas %}<li>{{ l }} Senatorial Zone Hub</li>{% endfor %}</ul>
+    </div>
+    <div>
+      <h3>Services</h3>
+      <ul>
+        <li>Supplier registration assistance</li>
+        <li>Bid submission on behalf of registered suppliers</li>
+        <li>Document scanning and upload</li>
+        <li>Tender alert registration (SMS)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Open tenders</h2>
+  <table class="data">
+    <thead><tr><th>OCID</th><th>Title</th><th>Agency</th><th>Deadline</th></tr></thead>
+    <tbody>
+    {% for t in open_tenders %}
+    <tr>
+      <td><a href="/tenders/{{ t.ocid }}/">{{ t.ocid }}</a></td>
+      <td>{{ t.title|truncatechars:60 }}</td>
+      <td>{{ t.agency.code }}</td>
+      <td>{{ t.submission_close_at|date:"d M Y" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

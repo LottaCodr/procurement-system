@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Contract {{ c.reference }} — Implementation{% endblock %}
+{% block content %}
+<nav class="crumb">
+  <a href="/tenders/contracts/">Contracts</a> &rsaquo; {{ c.reference }}
+</nav>
+
+<div class="card">
+  <h1>{{ c.reference }}</h1>
+  <div class="grid-2">
+    <div>
+      <dl>
+        <dt>Status</dt><dd><span class="badge">{{ c.get_status_display }}</span></dd>
+        <dt>Supplier</dt><dd><a href="/tenders/suppliers/{{ c.award.bid.supplier.pk }}/">{{ c.award.bid.supplier.legal_name }}</a></dd>
+        <dt>Agency</dt><dd>{{ c.award.tender.agency.name }}</dd>
+        <dt>OCID</dt><dd><a href="/tenders/{{ c.award.tender.ocid }}/">{{ c.award.tender.ocid }}</a></dd>
+        <dt>Value</dt><dd>₦{{ c.value|floatformat:2 }}</dd>
+        <dt>Signed</dt><dd>{{ c.signed_at|date:"d M Y" }}</dd>
+        <dt>Duration</dt><dd>{{ c.duration_days }} days</dd>
+        <dt>Advance</dt><dd>{{ c.advance_pct }}%</dd>
+        <dt>Performance guarantee</dt><dd>{{ c.perf_guarantee_pct }}%</dd>
+        <dt>Defects liability</dt><dd>{{ c.defect_days }} days</dd>
+      </dl>
+    </div>
+    <div>
+      {% if c.location %}<p><strong>Location:</strong> {{ c.location }}</p>{% endif %}
+      {% if c.deliverables %}<p><strong>Deliverables:</strong> {{ c.deliverables }}</p>{% endif %}
+
+      {% if variation_alarm %}
+      <div class="alert bad">
+        <strong>⚠ Variation alarm:</strong> Contract value has grown {{ total_variation_pct }}% beyond signed value.
+        Variations exceeding 10% trigger red-flag indicator T10.
+      </div>
+      {% endif %}
+
+      {% if expiring_guarantees %}
+      <div class="alert warn">
+        <strong>⚠ Expiring guarantees:</strong>
+        {% for g in expiring_guarantees %}
+        {{ g.get_kind_display }} ({{ g.reference }}) expires in {{ g.days_to_expiry }} days.
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if overdue_milestones %}
+      <div class="alert warn">
+        <strong>⚠ Overdue milestones:</strong>
+        {% for m in overdue_milestones %}
+        {{ m.title }} ({{ m.days_late }} days late){% if not forloop.last %}, {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if milestones %}
+<div class="card">
+  <h2>Milestones</h2>
+  <table class="data">
+    <thead><tr><th>#</th><th>Title</th><th>Planned</th><th>Actual</th><th>Value</th><th>Status</th><th>Days late</th></tr></thead>
+    <tbody>
+    {% for m in milestones %}
+    <tr>
+      <td>{{ m.seq }}</td>
+      <td>{{ m.title }}</td>
+      <td>{{ m.planned_date|date:"d M Y" }}</td>
+      <td>{{ m.actual_date|date:"d M Y"|default:"—" }}</td>
+      <td>₦{{ m.value|floatformat:2 }}</td>
+      <td><span class="badge {% if m.status == 'ACCEPTED' %}ok{% elif m.status == 'OVERDUE' %}bad{% endif %}">{{ m.get_status_display }}</span></td>
+      <td>{% if m.days_late > 0 %}{{ m.days_late }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <a href="/tenders/contracts/{{ c.reference }}/milestones/" class="btn">Detailed timeline</a>
+</div>
+{% endif %}
+
+{% if variations %}
+<div class="card">
+  <h2>Variations</h2>
+  <p class="muted">Total variation: {{ total_variation_pct }}% of signed value. <a href="/tenders/contracts/{{ c.reference }}/variations/">View all variations</a>.</p>
+  <table class="data">
+    <thead><tr><th>Title</th><th>Amount</th><th>%</th><th>Time</th><th>Status</th><th>Alarm</th></tr></thead>
+    <tbody>
+    {% for v in variations %}
+    <tr>
+      <td>{{ v.title }}</td>
+      <td>₦{{ v.amount_change|floatformat:2 }}</td>
+      <td>{{ v.pct_of_contract }}%</td>
+      <td>{% if v.time_change_days %}{{ v.time_change_days }}d{% else %}—{% endif %}</td>
+      <td><span class="badge">{{ v.get_status_display }}</span></td>
+      <td>{% if v.alarm_triggered %}<span class="badge bad">⚠ >10%</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if guarantees %}
+<div class="card">
+  <h2>Guarantees</h2>
+  <table class="data">
+    <thead><tr><th>Type</th><th>Issuer</th><th>Reference</th><th>Amount</th><th>Expires</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for g in guarantees %}
+    <tr>
+      <td>{{ g.get_kind_display }}</td>
+      <td>{{ g.issuer }}</td>
+      <td>{{ g.reference }}</td>
+      <td>₦{{ g.amount|floatformat:2 }}</td>
+      <td>{{ g.expires_at|date:"d M Y" }} ({{ g.days_to_expiry }}d)</td>
+      <td>{% if g.released_at %}<span class="badge">Released</span>{% elif g.is_expired %}<span class="badge bad">Expired</span>{% else %}<span class="badge ok">Valid</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if acceptances %}
+<div class="card">
+  <h2>Acceptance certificates (CRAC)</h2>
+  <table class="data">
+    <thead><tr><th>Ref</th><th>Value</th><th>Certified by</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for a in acceptances %}
+    <tr>
+      <td>{{ a.ref }}</td>
+      <td>₦{{ a.value|floatformat:2 }}</td>
+      <td>{{ a.certified_by.get_full_name|default:a.certified_by.username }}</td>
+      <td>{{ a.inspected_at|date:"d M Y H:i" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if certifications %}
+<div class="card">
+  <h2>Payment certifications</h2>
+  <table class="data">
+    <thead><tr><th>Reference</th><th>Amount</th><th>Certified by</th><th>Treasury ref</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for p in certifications %}
+    <tr>
+      <td>{{ p.reference }}</td>
+      <td>₦{{ p.amount|floatformat:2 }}</td>
+      <td>{{ p.certified_by.get_full_name|default:p.certified_by.username }}</td>
+      <td>{{ p.treasury_ref|default:"—" }}</td>
+      <td>{{ p.certified_at|date:"d M Y H:i" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if rating %}
+<div class="card">
+  <h2>Performance rating</h2>
+  <div class="grid-2">
+    <div>
+      <p class="grade-display"><span class="badge grade-{{ rating.grade }}">{{ rating.get_grade_display }}</span></p>
+      <dl>
+        <dt>Timeliness</dt><dd>{{ rating.timeliness_score|floatformat:0 }}/100</dd>
+        <dt>Quality</dt><dd>{{ rating.quality_score|floatformat:0 }}/100</dd>
+        <dt>Variation</dt><dd>{{ rating.variation_score|floatformat:0 }}/100</dd>
+        <dt>Composite</dt><dd><strong>{{ rating.composite|floatformat:0 }}/100</strong></dd>
+      </dl>
+    </div>
+    <div>
+      {% if rating.narrative %}<p>{{ rating.narrative }}</p>{% endif %}
+      <p class="tiny">Rated by {{ rating.rated_by.get_full_name|default:rating.rated_by.username }} on {{ rating.rated_at|date:"d M Y" }}.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if events %}
+<div class="card">
+  <h2>Contract events</h2>
+  <table class="data">
+    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead>
+    <tbody>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.occurred_at|date:"d M Y" }}</td>
+      <td>{{ e.kind }}</td>
+      <td>{% if e.amount %}₦{{ e.amount|floatformat:2 }}{% else %}—{% endif %}</td>
+      <td>{{ e.note|truncatechars:100 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

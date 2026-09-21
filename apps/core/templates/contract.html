@@ -24,4 +24,7 @@
 <td class="muted">{% for p in c.certifications.all %}{{ p.treasury_ref }}{% endfor %}</td></tr>{% endfor %}
 {% if not acceptances %}<tr><td colspan="5" class="muted">Nothing accepted yet &mdash; nothing is payable.</td></tr>{% endif %}
 </tbody></table>
+<p><a href="/tenders/contracts/{{ c.reference }}/workspace/" class="btn primary">Open contract workspace &rarr;</a>
+<a href="/tenders/contracts/{{ c.reference }}/milestones/" class="btn">Milestones</a>
+<a href="/tenders/contracts/{{ c.reference }}/variations/" class="btn">Variations</a></p>
 {% endblock %}

@@ -8,6 +8,13 @@
 {% if t.status == "FROZEN" %}<div class="warnbox"><strong>Frozen by objection.</strong> This procedure is suspended pending an independent panel decision{% if t.frozen_until %} until {{ t.frozen_until|shortdate }}{% endif %}. Bids and evaluation state are preserved exactly as they were.</div>{% endif %}
 {% if not ocds_ok %}<div class="badbox"><strong>OCDS validation failure.</strong> This record cannot be released as open data until fixed: <code>{{ ocds_error }}</code></div>{% endif %}
 
+<div class="card" style="padding:0.5rem 1rem">
+  <a href="/tenders/{{ t.ocid }}/bid/" class="btn">Submit bid</a>
+  {% if reveal %}<a href="/tenders/{{ t.ocid }}/evaluation/" class="btn">Evaluation workspace</a>{% endif %}
+  <a href="/tenders/{{ t.ocid }}/objections/" class="btn">Objections</a>
+  <a href="/tenders/{{ t.ocid }}/debriefs/" class="btn">Debriefs</a>
+</div>
+
 <div class="grid c4">
   <div class="kpi"><b>{{ t.est_value|naira }}</b><span>published estimate (disclosed by law of this platform)</span></div>
   <div class="kpi"><b>{{ bids|length }}</b><span>bids received</span></div>

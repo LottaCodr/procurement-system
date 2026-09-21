@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Register as a supplier{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Register as a supplier</h1>
+  <p>Complete your company profile to bid on Taraba State procurement opportunities.
+  Registration is free and your profile will be verified against CAC, TIN, and PenCom records.</p>
+  <p class="muted">Your registration will be saved as a draft — you can stop and resume at any time using the token provided.</p>
+
+  <div class="steps">
+  {% for num, title, desc in steps %}
+    <div class="step">
+      <span class="step-num">{{ num }}</span>
+      <strong>{{ title }}</strong>
+      <span class="muted">{{ desc }}</span>
+    </div>
+  {% endfor %}
+  </div>
+
+  <form method="post" action="/api/wf/vendor/register/start" id="start-form">
+    <button type="submit" class="btn primary">Start registration</button>
+  </form>
+
+  <p class="tiny">Already have a draft token? <a href="/register/form/">Resume your registration</a>.</p>
+</div>
+{% endblock %}

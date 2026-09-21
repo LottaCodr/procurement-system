@@ -112,8 +112,8 @@ def test_objection_panel_and_payment_lock():
     t = Tender(agency=moh, budget_line=bl, method="NCB", title="Objection test",
                est_value=Decimal("95000000"), rule=rule, approval_body="MTB", created_by=dg,
                published_at=timezone.now()-timedelta(days=20),
-               submission_close_at=timezone.now()-timedelta(days=1),
-               opening_at=timezone.now()-timedelta(days=1,hours=4),
+               submission_close_at=timezone.now()-timedelta(days=2),
+               opening_at=timezone.now()-timedelta(days=1),
                qa_close_at=timezone.now()-timedelta(days=4),
                opening_venue="hall", immutable_from=timezone.now()-timedelta(days=20))
     t.status = Tender.Status.PUBLISHED  # skip publish's state machine for this test (sealing already exists from signal in real runs)
