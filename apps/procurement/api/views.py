@@ -11,10 +11,9 @@ import csv
 import io
 import json
 import zipfile
-from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
-from django.db.models import Count, Q, Sum
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
@@ -24,7 +23,6 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from ledger import services as ledger
-from ledger.models import Event
 from procurement.api.serializers import (
     AwardSerializer,
     ContractSerializer,
@@ -33,9 +31,10 @@ from procurement.api.serializers import (
     TenderListSerializer,
 )
 from procurement.models import Award, Contract, Tender
-from procurement.models_party import Agency, Party, PartyVerification
+from procurement.models_party import Party
 from procurement.ocds.schema import OCDS_RELEASE_SCHEMA, validate_release
 from procurement.risk import INDICATORS, INDICATOR_VERSION, evaluate_tender
+from procurement.views import live_metrics
 
 
 class TenderCursorPagination(CursorPagination):
@@ -272,26 +271,17 @@ def indicators(request):
 def stats(request):
     """This endpoint is the reason the homepage can print numbers at all.
 
-    The current Taraba site advertises ₦48.7bn published and 100% disclosure
-    while the register returns ₦0.00. Here the two cannot diverge: the template
-    renders *this* payload and CI asserts equality against the database.
+    The incumbent Taraba site advertises ₦48.7bn published and 100% disclosure
+    while its register returns ₦0.00. Here the two cannot diverge, because both
+    render the same call to `live_metrics()` — the page in HTML, this endpoint
+    as JSON — and CI asserts that payload against the database.
+
+    The earlier version of this view re-derived the figures, which is how it
+    came to define "open" as PUBLISHED-only while the register counted
+    CLARIFYING processes too. Two implementations of one metric is one
+    implementation too many.
     """
-    year = timezone.localdate().year
-    tenders = Tender.objects.public()
-    awards = Award.objects.filter(status__in=[Award.Status.PUBLISHED, Award.Status.CONTRACTED])
-    total = awards.aggregate(v=Sum("amount"))["v"] or 0
-    active_agencies = tenders.values("agency").distinct().count()
-    payload = {
-        "open_tenders": tenders.filter(status=Tender.Status.PUBLISHED, submission_close_at__gt=timezone.now()).count(),
-        "published_this_year": tenders.filter(published_at__year=year).count(),
-        "awards_published": awards.count(),
-        "total_award_value": total,
-        "suppliers_verified": Party.objects.filter(verifications__kind=PartyVerification.Kind.CAC, verifications__status="PASSED").distinct().count(),
-        "mdas_onboarding": active_agencies,
-        "ledger_events": Event.objects.count(),
-        "ledger_head_hash": ledger.head_hash(),
-        "generated_at": timezone.now(),
-    }
+    payload = live_metrics()
     ser = StatsSerializer(data=payload)
     ser.is_valid(raise_exception=True)
     return Response(ser.data, headers={"Cache-Control": "public, max-age=60"})

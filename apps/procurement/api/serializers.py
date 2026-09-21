@@ -168,15 +168,27 @@ class ContractSerializer(serializers.ModelSerializer):
 
 
 class StatsSerializer(serializers.Serializer):
+    """Every figure the public pages print, in one payload.
+
+    The field list is deliberately the whole of `live_metrics()`: the site tells
+    readers that the API is the source of truth for every number on it, and a
+    field missing here would quietly make that claim false.
+    """
+
     open_tenders = serializers.IntegerField()
     published_this_year = serializers.IntegerField()
+    published_all_time = serializers.IntegerField()
     awards_published = serializers.IntegerField()
     total_award_value = serializers.DecimalField(max_digits=18, decimal_places=2)
+    contracts_signed = serializers.IntegerField()
     suppliers_verified = serializers.IntegerField()
+    suppliers_total = serializers.IntegerField()
     mdas_onboarding = serializers.IntegerField()
+    mdas_total = serializers.IntegerField()
     ledger_events = serializers.IntegerField()
     ledger_head_hash = serializers.CharField()
     generated_at = serializers.DateTimeField()
+    year = serializers.IntegerField()
 
     # Rule 1: no metric is displayed that a query did not produce.
     def validate_total_award_value(self, v) -> Decimal:

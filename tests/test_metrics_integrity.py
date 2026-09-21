@@ -7,7 +7,6 @@ import pytest
 from django.test import Client
 from django.db.models import Sum
 from django.utils import timezone
-from decimal import Decimal
 
 
 @pytest.mark.django_db
@@ -151,19 +150,22 @@ def test_suppliers_page_matches_database():
 def test_metrics_match_database():
     """API stats must match what we compute from the database directly."""
     from procurement.models import Tender, Award
-    from procurement.models_party import Party, PartyVerification
 
     client = Client()
     response = client.get("/api/v1/stats")
     import json
     stats = json.loads(response.content)
 
-    # Verify open_tenders
-    db_open = Tender.objects.public().filter(
-        status=Tender.Status.PUBLISHED,
-        submission_close_at__gt=timezone.now()
-    ).count()
+    # "Open for bids" has exactly one definition in this codebase —
+    # TenderQuerySet.open(), reused by the register, the headline count and the
+    # API. A second definition here (PUBLISHED only, missing CLARIFYING) is how
+    # the API and the page came to disagree.
+    db_open = Tender.objects.public().open().count()
     assert stats["open_tenders"] == db_open
+    if Tender.objects.filter(status=Tender.Status.CLARIFYING).exists():
+        assert Tender.objects.public().open().count() > Tender.objects.public().filter(
+            status=Tender.Status.PUBLISHED, submission_close_at__gt=timezone.now()
+        ).count(), "a CLARIFYING tender should count as open"
 
     # Verify awards_published
     db_awards = Award.objects.filter(
@@ -176,3 +178,55 @@ def test_metrics_match_database():
         status__in=[Award.Status.PUBLISHED, Award.Status.CONTRACTED]
     ).aggregate(v=Sum("amount"))["v"] or 0
     assert float(stats["total_award_value"]) == float(db_total)
+
+
+@pytest.mark.django_db
+def test_stats_api_exposes_every_live_metric():
+    """The site tells readers the API is the source of truth for every figure on
+    it. A figure the API omits makes that claim false, so the payload is checked
+    against `live_metrics()` itself."""
+    import json
+
+    from procurement.views import live_metrics
+
+    stats = json.loads(Client().get("/api/v1/stats").content)
+    missing = set(live_metrics()) - set(stats)
+    assert not missing, f"figures printed on the site but absent from the API: {sorted(missing)}"
+
+
+@pytest.mark.django_db
+def test_homepage_kpis_equal_the_stats_api(dataset=None):
+    """The page and the API must not be able to disagree about a headline number."""
+    import json
+    import re
+
+    stats = json.loads(Client().get("/api/v1/stats").content)
+    html = Client().get("/").content.decode()
+    printed = [int(v.replace(",", "")) for v in
+               re.findall(r'<span class="kpi__value">\s*([\d,]+)', html)]
+    assert printed[:4] == [
+        stats["open_tenders"],
+        stats["awards_published"],
+        stats["contracts_signed"],
+        stats["suppliers_verified"],
+    ], f"homepage shows {printed[:4]}, API reports "
+    f"{[stats['open_tenders'], stats['awards_published'], stats['contracts_signed'], stats['suppliers_verified']]}"
+
+
+@pytest.mark.django_db
+def test_every_artefact_publication_command_reports_a_verdict():
+    """The verification commands CI runs must state a verdict and exit accordingly.
+
+    They are the project's whole safety argument, so their behaviour on an empty
+    database matters: a command that fails on no data teaches people to ignore
+    it, and one that silently passes on no data teaches them to trust it wrongly.
+    """
+    from django.core.management import call_command
+
+    import io
+
+    for name in ("verify_ledger", "publish_selftest", "check_links", "check_metrics_match"):
+        try:
+            call_command(name, stdout=io.StringIO(), stderr=io.StringIO())
+        except SystemExit as exc:  # some commands exit rather than return
+            assert exc.code in (0, None), f"{name} exited {exc.code} on an empty register"
