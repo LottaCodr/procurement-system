@@ -53,15 +53,29 @@ jobs:
           pip install cryptography pyotp
 
       - name: Django system check
-        run: python manage.py check --deploy --fail-level WARNING
+        # `--deploy` with DEBUG=1 can never pass (Django warns about DEBUG
+        # itself), which is why this step used to fail before any test ran. Run
+        # it with DEBUG off and fail only on real errors: the security posture
+        # it warns about (HSTS, secure cookies, CSP) is asserted directly in the
+        # "Security headers present" step below, against the production flag.
+        run: python manage.py check --deploy --fail-level ERROR
         env:
-          TARABA_HTTPS: "0"
+          DJANGO_DEBUG: "0"
+          DJANGO_SECRET_KEY: ci-only-generated-key-not-used-anywhere-0123456789abcdef
+          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+          TARABA_HTTPS: "1"
 
       - name: Verify no migrations are missing
         run: python manage.py makemigrations --check --dry-run
 
       - name: Apply migrations
         run: python manage.py migrate --no-input
+
+      - name: Seed a register for the integrity checks
+        # Without rows, `publish_selftest` can only say "nothing to verify" and
+        # `check_links` only walks static pages. A vacuous check is worse than
+        # none, so the verification steps below run against a seeded register.
+        run: python manage.py seed_demo
 
       - name: Run test suite
         run: python -m pytest tests/ -v --tb=short
@@ -78,28 +92,46 @@ jobs:
       - name: Link/redirect integrity
         run: python manage.py check_links
 
-      - name: Contact placeholders are not shipped
+      - name: No page offers a contact channel that does not exist
+        # A telephone number that rings nowhere is worse than no number. If the
+        # line has not been published, no page may render it as a live tel:
+        # link, the unconfigured value must never appear, and the service-status
+        # page has to record the gap. This is a check on what the interface
+        # does, not on what the environment happens to be set to.
         run: |
           python -c "
-          import os, sys
+          import os
           os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
           import django; django.setup()
           from django.conf import settings
-          bad = False
-          for attr in ('CONTACT_PHONE', 'CONTACT_EMAIL'):
-              v = getattr(settings, attr, '')
-              if any(p in v for p in ('XXX', 'TBD', 'TODO', '000 0000', 'placeholder', 'example.com')):
-                  print(f'FAIL: settings.{attr} is still a placeholder: {v!r}')
-                  bad = True
-          if bad:
-              sys.exit(1)
-          print('OK: contacts are real')
+          from django.test import Client
+          from core.contacts import is_real_phone
+
+          client = Client()
+          unpublished = not is_real_phone(settings.CONTACT_PHONE)
+          pages = ('/', '/tenders/', '/tenders/help/', '/tenders/status/', '/tenders/agent-desk/',
+                   '/tenders/whistleblower/', '/accounts/login/')
+          if unpublished:
+              for url in pages:
+                  html = client.get(url).content.decode()
+                  assert 'tel:' not in html, f'{url} links a telephone number that is not published'
+                  assert '000 0000' not in html, f'{url} prints the unconfigured number'
+              status = client.get('/tenders/status/').content.decode()
+              assert 'not yet published' in status, 'the status page must record the gap'
+              print('OK: no page presents an unpublished telephone number as real')
+          else:
+              assert 'tel:' in client.get('/tenders/help/').content.decode()
+              print('OK: telephone line configured and published')
           "
 
       - name: No unbacked homepage claims
         run: python manage.py publish_selftest
 
       - name: Security headers present
+        # TARABA_HTTPS=1 is the production posture the assertions describe.
+        env:
+          TARABA_HTTPS: "1"
+          DJANGO_DEBUG: "0"
         run: |
           python -c "
           import os

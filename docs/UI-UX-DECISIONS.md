@@ -298,7 +298,9 @@ the current database and prints what a visitor would actually get.
 | `Party.name` | The award RSS feed raised `AttributeError` | `legal_name` |
 | N+1 in list views | Contract dashboard issued ~100 extra queries; defects list 2 per row; catalogue 1 per row | Grouped annotations and a single pass over an ordered queryset |
 | Ledger payloads rendered as Python dicts | `/tenders/TAR-MOH-2026-0001/` printed `{'version': 1, 'kind': 'BOQ', …}` into a public cell — a 200 OK that no status-code audit could see | A `ledger_payload` filter formats the same payload as labelled facts (`ledger_payload` tests) |
+| The API published fewer figures than the page | `/api/v1/stats` returned 7 of the 11 figures the site prints, and defined "open" as PUBLISHED-only while the register counted CLARIFYING processes too — so the page and the API could disagree, on the site that tells readers the API is the source of truth | `stats` now serves `live_metrics()` itself, the serializer carries every key, and `check_metrics_match` compares the API *and* the rendered page against independent database aggregates |
 | The audit checked one row per route | A defect that needed a document or a clarification to appear was invisible to it | The crawl now walks every tender, contract, supplier, MDA and objection (89 URLs) |
+| Every page linked a telephone number that rings nowhere | `CONTACT_PHONE` defaults to `+234 800 000 0000`, which the footer, help page, error pages and bid-receipt warning printed as a live `tel:` link — a citizen reporting corruption would have dialled it | `core/contacts.py` decides whether a contact point is real; pages print the number only when it is, otherwise they say the line is unpublished and route the reader to the help page, the assisted desks or the email; `/tenders/status/` records the gap as a known open item |
 | CSS classes used but never defined | `.tiny`, `.muted`, `.money`, table footers unstyled | `05-utilities.css`, with the rule that anything there is a documented word in the vocabulary |
 | No build artifact for the stylesheet | First request of a fresh checkout built CSS in the request thread | `buildcss` run as part of the standard verification sequence, and a test asserting the artifact is not stale |
 
@@ -309,6 +311,23 @@ the current database and prints what a visitor would actually get.
 * The redirect map resolves for every retired URL (`check_links`).
 
 ---
+
+## 5a. What CI did not check (and now does)
+
+The pipeline was red on every commit before this work, and the reason mattered
+more than the colour: the first job died in `check --deploy --fail-level WARNING`
+while running with `DEBUG=1`, so **no test had ever run in CI**, and none of the
+integrity commands below it had ever been exercised either.
+
+| Was | Now |
+|---|---|
+| `check --deploy --fail-level WARNING` under `DEBUG=1` — unsatisfiable, because Django warns about DEBUG itself | the same check with `DEBUG=0`, a generated key and `TARABA_HTTPS=1`, failing on errors; the security posture is asserted directly in the step that follows |
+| Integrity commands ran against an empty database, where `publish_selftest` can only say "nothing to verify" and `check_links` walks static pages | `seed_demo` runs first, so the checks compare real rows (OCDS round-trip, headline figures, 29 links) |
+| A gate that failed because the contact settings are placeholders — true of every checkout | a gate on the *interface*: no page may present an unpublished number as real, and the status page must record the gap |
+| `check_metrics_match` compared against field names the API had stopped using (`awards_count`, `verified_suppliers`), so it could never pass | it compares the API **and** the landing page against definitions written out from the database |
+
+Verified by replaying the whole job against a local PostgreSQL 16 instance: every
+step green, including the ones that had never run.
 
 ## 6. Deliberately not done
 

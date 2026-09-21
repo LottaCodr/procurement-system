@@ -52,13 +52,12 @@ class Command(BaseCommand):
         from procurement.models_additional import DefectReport, ReverseAuction
         from procurement.models_party import Agency, Party
         from workflow.models import CatalogueItem, PurchaseOrder, WhistleblowerReport
-        from workflow.models_phases import DebriefRequest
 
         def first(model, **filters):
             return model.objects.filter(**filters).order_by("pk").first()
 
         tender = first(Tender, status="AWARDED") or first(Tender)
-        award = first(Award) 
+        award = first(Award)
         contract = first(Contract) or (getattr(award, "contract", None) if award else None)
         party = first(Party)
         agency = first(Agency)
