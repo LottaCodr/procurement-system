@@ -19,7 +19,7 @@ import csv
 import json
 import re
 from datetime import timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.paginator import EmptyPage, Paginator

@@ -45,10 +45,11 @@ import hmac
 import json
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+import pyotp
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -180,13 +181,10 @@ def verify_receipt(commitment_hash: str, tender_ocid: str, submitted_at: datetim
 
 
 # ---- TOTP helpers (MFA) ---------------------------------------------------
-import pyotp
-
-
 def provision_totp(name: str, email: str) -> tuple[str, str]:
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(name=email, issuer_name=f"Taraba State Procurement")
+    provisioning_uri = totp.provisioning_uri(name=email, issuer_name="Taraba State Procurement")
     return secret, provisioning_uri
 
 

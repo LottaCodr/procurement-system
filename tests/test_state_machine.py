@@ -11,9 +11,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from procurement.models import (
-    AcceptanceCertificate, Award, Bid, Contract, Criterion,
-    EvaluationCommittee, Lot, PaymentCertification, Score, Tender,
-    TenderDocument,
+    AcceptanceCertificate, Award, Bid, Contract, EvaluationCommittee, Lot, PaymentCertification, Tender,
 )
 from procurement.models_party import Agency, BudgetLine, Party, User
 

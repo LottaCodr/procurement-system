@@ -1,20 +1,15 @@
 """End-to-end workflow test across Phases 2-5."""
-import json
 from datetime import datetime
 from decimal import Decimal
 from django.utils import timezone
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.test import Client
 
-from procurement.crypto import encrypt_bid_payload, decrypt_bid_payload
-from procurement.models import Award, Contract, Tender
+from procurement.models import Tender
 from procurement.models_party import Agency, BudgetLine, Party
 from workflow.models import (
     CatalogueItem,
-    PurchaseOrder,
-    SupplierRegistrationDraft,
     TenderKey,
     WhistleblowerReport,
 )
@@ -51,7 +46,8 @@ def test_supplier_registration_approval_flow():
     upload_draft_document(d, "TIN", "b"*64, 10000, "obj:tin.pdf", "tin.pdf", "application/pdf", expiry="2027-06-30")
     upload_draft_document(d, "PENCOM", "c"*64, 10000, "obj:pen.pdf", "pen.pdf", "application/pdf")
     add_draft_owner(d, "Ada Bello", "RC9000001", Decimal("100.0"), is_pep=False)
-    d.accept_terms = True; d.save()
+    d.accept_terms = True
+    d.save()
     assert not d.ready_to_submit()  # should now be empty
     submit_draft(d)
     p = approve_draft(d, dg)
@@ -86,8 +82,10 @@ def test_sealed_bid_submit_and_unseal():
     assert bid.status == "RECEIVED"
     assert env.ciphertext_sha256
     # fast-forward to opening
-    t.submission_close_at = timezone.now()-timedelta(minutes=1); t.save()
-    t.close(actor=dg.username); t.open_bids(actor=dg.username)
+    t.submission_close_at = timezone.now() - timedelta(minutes=1)
+    t.save()
+    t.close(actor=dg.username)
+    t.open_bids(actor=dg.username)
     failures = unseal_bids(t, dg.username)
     assert failures == 0
     bid.refresh_from_db()
@@ -97,7 +95,7 @@ def test_sealed_bid_submit_and_unseal():
 
 @pytest.mark.django_db
 def test_objection_panel_and_payment_lock():
-    import os,json
+    import os
     os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"]="1"
     """Build a fresh tender and run it through EVALUATING -> award -> objection -> accept -> pay."""
     from datetime import timedelta
@@ -124,8 +122,9 @@ def test_objection_panel_and_payment_lock():
     bid = Bid.objects.create(tender=t, lot=t.lots.first(), supplier=sup,
                              amount=Decimal("85000000"), duration_days=90, submitted_at=t.submission_close_at-timedelta(days=1),
                              status=Bid.Status.EVALUATED, price_schedule_public=True, receipt_ref="RCP-RRR")
-    bid.commitment_hash = "h"*64; bid.save(update_fields=["commitment_hash"])
-    from procurement.models import EvaluationCommittee, Criterion, Score
+    bid.commitment_hash = "h" * 64
+    bid.save(update_fields=["commitment_hash"])
+    from procurement.models import EvaluationCommittee, Criterion
     EvaluationCommittee.objects.create(tender=t, user=dg, role="CHAIR", formed_at=t.opening_at+timedelta(hours=2), declaration_sha256="f"*64)
     t.transition("CLOSED", actor=dg.username, reason="deadline")
     t.open_bids(actor=dg.username)
@@ -156,7 +155,7 @@ def test_catalogue_l1_auto_award():
     CatalogueItem.objects.create(supplier=sup3, category="STATIONERY", sku="PEN-B3", name="Blue pen box", unit="box", unit_price=Decimal("1600"), lead_time_days=3)
     po = create_po(agency, bl, dg, "STATIONERY", "Pens", Decimal("1000"), "box", "standard blue pens", deadline_days=5)
     assert po.quotes.count() == 3
-    award = __import__("workflow.services", fromlist=["award_po"]).award_po(po)
+    __import__("workflow.services", fromlist=["award_po"]).award_po(po)
     po.refresh_from_db()
     assert po.status == "ACCEPTED"
     assert po.awarded_unit_price == Decimal("1400")  # lowest L1
@@ -178,6 +177,8 @@ def test_mfa_challenge_totp_enrol():
     code = pyotp.TOTP(sec).now()
     from django.test import RequestFactory
     from workflow.services import send_mfa_challenge, verify_mfa
-    rf = RequestFactory(); req = rf.post("/x"); req.META["REMOTE_ADDR"]="127.0.0.1"
+    rf = RequestFactory()
+    req = rf.post("/x")
+    req.META["REMOTE_ADDR"] = "127.0.0.1"
     ch = send_mfa_challenge(u, "TOTP")
     assert verify_mfa(ch, code)

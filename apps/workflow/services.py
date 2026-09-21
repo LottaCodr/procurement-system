@@ -14,13 +14,9 @@ Every public function writes to the ledger via `ledger.services.append`.
 """
 from __future__ import annotations
 
-import base64
 import hashlib
-import hmac
 import json
-import string
-import secrets
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -45,15 +41,13 @@ from procurement.crypto import (
 from procurement.models import (
     AcceptanceCertificate,
     Award,
+    Objection,
     Bid,
     Contract,
-    ContractEvent,
     Criterion,
-    EvaluationCommittee,
     PaymentCertification,
     Score,
     Tender,
-    TenderDocument,
 )
 from procurement.models_party import (
     Agency,
@@ -65,6 +59,7 @@ from procurement.models_party import (
 )
 from workflow.models import (
     AwardRecommendation,
+    DraftDocument,
     CatalogueItem,
     CatalogueQuote,
     CategoryWatch,
@@ -106,9 +101,7 @@ def save_draft_step(draft: SupplierRegistrationDraft, step: int, payload: dict, 
     return draft
 
 
-def upload_draft_document(draft: SupplierRegistrationDraft, kind: str, file_sha256: str, size_bytes: int, obj_key: str, filename: str, content_type: str, issued=None, expiry=None) -> "workflow.DraftDocument":
-    from workflow.models import DraftDocument
-
+def upload_draft_document(draft: SupplierRegistrationDraft, kind: str, file_sha256: str, size_bytes: int, obj_key: str, filename: str, content_type: str, issued=None, expiry=None) -> DraftDocument:
     dd, _ = DraftDocument.objects.update_or_create(
         draft=draft, kind=kind,
         defaults={"sha256": file_sha256, "size_bytes": size_bytes, "obj_key": obj_key,
@@ -271,7 +264,8 @@ def unseal_bids(tender: Tender, actor: str, custodian_shares: list[str] | None =
                                 tender.ocid, bid.supplier.rc_number or bid.supplier.legal_name,
                                 str(body.get("amount", "")), bid.submitted_at)
             if not ok:
-                bid.status = Bid.Status.REJECTED; failures += 1
+                bid.status = Bid.Status.REJECTED
+                failures += 1
             else:
                 bid.amount = Decimal(str(body.get("amount", bid.amount or "0")))
                 bid.duration_days = body.get("duration_days", bid.duration_days)
@@ -362,8 +356,7 @@ def certify_payment(contract: Contract, acceptance: AcceptanceCertificate, certi
 
 
 # ============================================================= objections
-def file_objection(award: Award, ground: str, filed_by: User | None, label: str, panelists: list[dict], evidence: list[dict] | None = None) -> "procurement.Objection":
-    from procurement.models import Objection
+def file_objection(award: Award, ground: str, filed_by: User | None, label: str, panelists: list[dict], evidence: list[dict] | None = None) -> Objection:
     if award.objection_until and timezone.now() > award.objection_until:
         raise ValidationError("The objection window has closed.")
     with transaction.atomic():
@@ -412,9 +405,10 @@ def create_po(agency: Agency, bl: BudgetLine, requester: User, category: str, ti
     return po
 
 
-def award_po(po: PurchaseOrder) -> "procurement.Award":
+def award_po(po: PurchaseOrder) -> Award:
     l1 = po.quotes.order_by("unit_price").first()
-    l1.is_l1 = True; l1.save(update_fields=["is_l1"])
+    l1.is_l1 = True
+    l1.save(update_fields=["is_l1"])
     po.awarded_supplier = l1.supplier
     po.awarded_unit_price = l1.unit_price
     po.status = "AWARDED"
@@ -439,7 +433,8 @@ def award_po(po: PurchaseOrder) -> "procurement.Award":
                                       reason="Catalogue fast-lane: L1 of at least 3 comparable quotes (GeM pattern).",
                                       approver=po.created_by, reference=po.reference, duration_days=l1.lead_time_days,
                                       location="", deliverables=po.specification, advance_pct=Decimal("0"), perf_pct=Decimal("5"))
-    po.status = "ACCEPTED"; po.save(update_fields=["status"])
+    po.status = "ACCEPTED"
+    po.save(update_fields=["status"])
     return award
 
 
@@ -487,7 +482,9 @@ def enrol_totp(user: User) -> tuple[str, str]:
     if user.role in settings.MFA_REQUIRED_ROLES and user.mfa_secret:
         return user.mfa_secret, ""  # already enrolled
     secret, uri = provision_totp(user.get_full_name() or user.username, user.email)
-    user.mfa_secret = secret; user.mfa_enrolled_at = timezone.now(); user.save(update_fields=["mfa_secret", "mfa_enrolled_at"])
+    user.mfa_secret = secret
+    user.mfa_enrolled_at = timezone.now()
+    user.save(update_fields=["mfa_secret", "mfa_enrolled_at"])
     return secret, uri
 
 
@@ -510,14 +507,13 @@ def notify_matching_tenders(party: Party, tender: Tender):
 
 
 def dispatch_category_watches(tender: Tender) -> int:
-    categories = set(tender.lots.values_list(..., flat=False)) if False else set()
-    # Tender's category is the dominant category among its lots; fall back to watchers
-    # for every category present (future: derive from items). For Phase 2/5 a tender
-    # without explicit category still notifies category-less watchers.
-    cats = set()
-    for l in tender.lots.all().prefetch_related("bids__supplier"):
-        # We don't store category on lots in Phase 1; match watches that have no category filter.
-        pass
+    """Notify watchers whose filters this tender satisfies.
+
+    Phase 1 does not record a category on a lot, so a tender cannot yet be
+    matched by category; watchers are matched on the MDA and the value band.
+    Category matching arrives when lots carry a category, and until then this
+    deliberately does not pretend to guess one.
+    """
     qs = CategoryWatch.objects.filter(Q(mda_code="") | Q(mda_code=tender.agency.code))
     if tender.est_value:
         qs = qs.filter(Q(min_amount__isnull=True) | Q(min_amount__lte=tender.est_value),

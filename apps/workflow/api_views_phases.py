@@ -8,12 +8,10 @@ from datetime import date
 from decimal import Decimal
 
 from django.http import JsonResponse, HttpResponseForbidden
-from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_POST
 
 from procurement.models import (
-    Award, Bid, Contract, Criterion, EvaluationCommittee, Score, Tender,
+    Award, Bid, Contract, Criterion, Score, Tender,
 )
 from procurement.models_party import User
 

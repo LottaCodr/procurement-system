@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 
-from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone

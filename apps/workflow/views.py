@@ -6,17 +6,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from django.db.models import Count, Q, Sum
-from django.http import Http404, JsonResponse
+from django.db.models import Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET
 
 from procurement.models import (
-    Award, Bid, Contract, ContractEvent, Criterion, EvaluationCommittee, Lot,
-    Objection, Score, Tender, TenderDocument,
+    Award, Bid, Contract, ContractEvent, Objection, Tender,
 )
-from procurement.models_party import Agency, BudgetLine, Party, PartyVerification, User
+from procurement.models_party import Party
 
 
 # ============================================================ Phase 2: Supplier
@@ -85,7 +84,7 @@ def register_start(request):
 @require_GET
 def register_form(request, token: str = ""):
     """Multi-step registration form. Token identifies the draft."""
-    from workflow.models import SupplierRegistrationDraft, DraftDocument, DraftOwner
+    from workflow.models import SupplierRegistrationDraft
 
     draft = None
     if token:
@@ -206,7 +205,6 @@ def evaluation_workspace(request, ocid: str):
         row = {"bid": bid, "scores": {}}
         for c in criteria:
             score = bid.scores.filter(criterion=c).first()
-            dissents = bid.scores.filter(criterion=c).first()
             row["scores"][c.code] = {
                 "score": score,
                 "dissents": list(score.dissents.all()) if score else [],
@@ -452,7 +450,6 @@ def contracts_dashboard(request):
         "award__bid__supplier", "award__tender__agency"
     ).order_by("-signed_at")
 
-    from workflow.models_phases import ContractMilestone, ContractVariation, ContractGuarantee
 
     status_filter = request.GET.get("status", "")
     if status_filter:

@@ -34,7 +34,6 @@ from procurement.models import (
     ContractEvent,
     Criterion,
     EvaluationCommittee,
-    Lot,
     Tender,
     TenderDocument,
     TenderQuestion,
@@ -277,7 +276,8 @@ class Command(BaseCommand):
             built.append(tender)
 
         # F: an unpublished draft with no estimate — publish() must refuse it.
-        broken = Tender.objects.create(agency=agencies["MOH"], budget_line=lines["MOH"], method="RFQ",
+        # Intentionally created with no estimate: publish() must refuse it.
+        Tender.objects.create(agency=agencies["MOH"], budget_line=lines["MOH"], method="RFQ",
                                        title="Draft: procurement that must not be publishable",
                                        rule=bands["r_rfq"], created_by=users["pde"])
         self.stdout.write(
@@ -292,7 +292,14 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------ helpers
     def _users(self):
-        mk = lambda u, r, n: User.objects.create(username=u, role=r, first_name=n.split()[0], last_name=" ".join(n.split()[1:]), email=f"{u}@tr.gov.ng", password=make_password("Change-me-first!"), mfa_secret="JBSWY3DPEHPK3PXP" * 2, mfa_enrolled_at=timezone.now())
+        def mk(u: str, r: str, n: str):
+            """A seeded staff account. The password is deliberately temporary and the
+            platform refuses it at first sign-in."""
+            return User.objects.create(
+                username=u, role=r, first_name=n.split()[0], last_name=" ".join(n.split()[1:]),
+                email=f"{u}@tr.gov.ng", password=make_password("Change-me-first!"),
+                mfa_secret="JBSWY3DPEHPK3PXP" * 2, mfa_enrolled_at=timezone.now(),
+            )
         out = {}
         for uname, role, full in [
             ("dg", "DG", "Tanko Assemboh"),

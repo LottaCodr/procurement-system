@@ -22,6 +22,16 @@ from workflow.models import (
     UserLanguagePreference,
     WhistleblowerReport,
 )
+from workflow.models_phases import (
+    ApprovalRouting,
+    ContractGuarantee,
+    ContractMilestone,
+    ContractVariation,
+    DebriefRequest,
+    EvaluationReport,
+    PaymentSchedule,
+    SupplierPerformanceRating,
+)
 
 
 @admin.register(SupplierRegistrationDraft)
@@ -69,19 +79,6 @@ class WhistleblowerAdmin(admin.ModelAdmin):
 class CatalogueAdmin(admin.ModelAdmin):
     list_display = ("supplier", "category", "sku", "name", "unit_price", "is_active", "updated_at")
     list_filter = ("category", "is_active")
-
-
-# Phase 2-4 additional model admin
-from workflow.models_phases import (
-    ApprovalRouting,
-    ContractGuarantee,
-    ContractMilestone,
-    ContractVariation,
-    DebriefRequest,
-    EvaluationReport,
-    PaymentSchedule,
-    SupplierPerformanceRating,
-)
 
 
 @admin.register(SupplierPerformanceRating)
