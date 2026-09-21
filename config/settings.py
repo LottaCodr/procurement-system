@@ -97,22 +97,55 @@ TEMPLATES = [
 ]
 
 # ---------------------------------------------------------------------- data
+def _database_from_url(url: str) -> dict:
+    """Build the Postgres config from a libpq-style URL.
+
+    Managed providers (Neon, Supabase, Vercel Postgres) hand you a single
+    ``postgres://...`` URL — including on Vercel, where the integration injects
+    ``DATABASE_URL`` automatically. ``?sslmode=require`` is honoured because
+    those providers refuse plaintext connections.
+    """
+    import urllib.parse
+
+    parsed = urllib.parse.urlparse(url)
+    config = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": parsed.path.lstrip("/"),
+        "USER": urllib.parse.unquote(parsed.username or ""),
+        "PASSWORD": urllib.parse.unquote(parsed.password or ""),
+        "HOST": parsed.hostname or "127.0.0.1",
+        "PORT": str(parsed.port or "5432"),
+        # Serverless instances are recycled aggressively; a warm-but-dead idle
+        # socket is worse than a fresh connect per request cycle. The provider's
+        # pooler (Neon pooler / Supavisor) fronts the connection count anyway.
+        "CONN_MAX_AGE": 0,
+    }
+    sslmode = (urllib.parse.parse_qs(parsed.query).get("sslmode") or [None])[0]
+    if sslmode:
+        config["OPTIONS"] = {"sslmode": sslmode}
+    return config
+
+
 DATABASES = {
     "default": (
-        {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("PGDATABASE", "taraba_procure"),
-            "USER": os.environ.get("PGUSER", "taraba_app"),
-            "PASSWORD": os.environ.get("PGPASSWORD", ""),
-            "HOST": os.environ.get("PGHOST", "127.0.0.1"),
-            "PORT": os.environ.get("PGPORT", "5432"),
-            "CONN_MAX_AGE": 60,
-        }
-        if env_flag("USE_POSTGRES")
-        else {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": os.environ.get("SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
-        }
+        _database_from_url(os.environ["DATABASE_URL"])
+        if os.environ.get("DATABASE_URL")
+        else (
+            {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": os.environ.get("PGDATABASE", "taraba_procure"),
+                "USER": os.environ.get("PGUSER", "taraba_app"),
+                "PASSWORD": os.environ.get("PGPASSWORD", ""),
+                "HOST": os.environ.get("PGHOST", "127.0.0.1"),
+                "PORT": os.environ.get("PGPORT", "5432"),
+                "CONN_MAX_AGE": 60,
+            }
+            if env_flag("USE_POSTGRES")
+            else {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": os.environ.get("SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
+            }
+        )
     )
 }
 
@@ -140,6 +173,15 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
+# Same-origin forms never need this, but a www/apex split or a proxied preview
+# domain turns into a silent 403 "Origin checking failed" on every POST. List
+# extra origins comma-separated, scheme included:
+#   CSRF_TRUSTED_ORIGINS=https://procurement.taraba.gov.ng,https://taraba.vercel.app
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 if env_flag("TARABA_HTTPS", "1" if not DEBUG else "0"):
     SECURE_HSTS_SECONDS = 63072000  # 2 years
@@ -205,12 +247,22 @@ CONTACT_PHONE = os.environ.get("CONTACT_PHONE", "+234 800 000 0000")  # CI asser
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "bpp@tr.gov.ng")
 SUPPORT_HOURS = "Mon-Fri 08:00-16:00 WAT"
 
+# Vendor registration rules (see apps/workflow/validators.py and models.py).
+# PENCOM_MIN_EMPLOYEES: the Pension Reform Act 2014 applies to employers of 3+
+# staff, so smaller firms legally cannot hold a PenCom certificate and must not
+# be asked for one. 5 is the matching threshold for the ITF levy.
+PENCOM_MIN_EMPLOYEES = int(os.environ.get("PENCOM_MIN_EMPLOYEES", "3"))
+ITF_MIN_EMPLOYEES = int(os.environ.get("ITF_MIN_EMPLOYEES", "5"))
+# Certificate uploads: small scans/phone photos only. Kept low because bytes
+# live in the database row, not on disk (serverless-safe, re-hashable).
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+
 # Every retired URL must have a permanent successor. This map is asserted in CI
 # (tests/test_links.py) — it is the direct countermeasure to Kano deleting its
 # entire award/OCDS corpus when the platform changed.
 LEGACY_REDIRECT_MAP = {
     "/disclosure": "/awards/",
-    "/register": "/vendor/register/",
+    "/register": "/tenders/register/",
     "/login": "/accounts/login/",
     "/forgot-password": "/accounts/password-reset/",
     "/tenders": "/tenders/",
@@ -218,7 +270,7 @@ LEGACY_REDIRECT_MAP = {
     "/ocds.json": "/api/v1/releases",
 }
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [APPS_DIR / "core" / "static"]
 
