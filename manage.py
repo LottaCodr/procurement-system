@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Taraba State e-Procurement Platform — management entry point."""
-import os
 import sys
-from pathlib import Path
 
 
 def main() -> None:
-    sys.path.insert(0, str(Path(__file__).resolve().parent / "apps"))
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    # This file's directory (the project root) is sys.path[0], so ``config``
+    # imports. prepare() adds ``apps/`` and replaces a blank
+    # DJANGO_SETTINGS_MODULE. setdefault() cannot: "" is already "set", and
+    # Django treats a blank value as settings-not-configured.
+    from config.bootstrap import prepare
+
+    prepare()
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:  # pragma: no cover

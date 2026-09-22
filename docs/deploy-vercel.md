@@ -65,7 +65,7 @@ Set these for **Production** (and Preview, minus the production hostname):
 
 | Variable | Value |
 |---|---|
-| `DJANGO_SETTINGS_MODULE` | `config.settings` |
+| `DJANGO_SETTINGS_MODULE` | optional. Leave it unset. If you set it, it must be `config.settings` — a blank value is what broke the build |
 | `DJANGO_SECRET_KEY` | `python -c "import secrets;print(secrets.token_urlsafe(50))"` |
 | `DJANGO_DEBUG` | `0` |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1,127.0.0.1:8000,testserver,.vercel.app,procurement.taraba.gov.ng` |
@@ -118,7 +118,39 @@ parent zone (`kn.gov.ng`) has no delegation at all; do not repeat that. Bonus:
 Vercel issues and auto-renews the TLS certificate (with the correct CN), which
 is exactly the continuity Kano's portal lacks.
 
-## 8. What does NOT fit on Vercel (plan around it)
+## 8. If the build dies on `LOGGING_CONFIG` / settings are not configured
+
+```text
+ImproperlyConfigured: Requested setting LOGGING_CONFIG, but settings are not configured.
+You must either define the environment variable DJANGO_SETTINGS_MODULE
+or call settings.configure() before accessing settings.
+```
+
+This is Django saying the process reached `django.setup()` with
+`DJANGO_SETTINGS_MODULE` unset **or blank**. It is not a CSS error and not a
+missing `settings.py`. The module is `config.settings` (see `manage.py`).
+
+What used to happen on this repo:
+
+1. `python build.py` ran `manage.py buildcss`.
+2. That command failed (command discovery, or the same blank settings module).
+3. The fallback called `django.setup()` after `os.environ.setdefault(...)`.
+4. A blank `DJANGO_SETTINGS_MODULE` already counted as set, so `setdefault`
+   did nothing, and `django.setup()` raised the error above. The build exited 1.
+
+`build.py` now calls `config.bootstrap.prepare()` before any `manage.py`
+command, so a blank module is replaced with `config.settings`. If
+`manage.py buildcss` still fails, the stylesheet is built in-process
+**without** `django.setup()` — concatenating CSS does not need the ORM.
+Migrations and the runtime (`config/asgi.py`, which Vercel uses because both
+ASGI and WSGI are set) go through the same bootstrap.
+
+If a later step says `Failed to read Django application settings`, the
+settings module imported but raised while loading. Read that traceback —
+it is a different failure (missing `DATABASE_URL` on a production deploy, a
+bad `DJANGO_SECRET_KEY`, an import error in an app).
+
+## 9. What does NOT fit on Vercel (plan around it)
 
 | Thing | Why | What to do |
 |---|---|---|
