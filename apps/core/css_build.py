@@ -15,6 +15,10 @@ Why a build step at all, for four stylesheets?
 `build()` is imported by the management command, by the `/stylesheet` view
 (so a fresh checkout with no build artifact still serves correct CSS) and by
 `tests/test_ui_contract.py` (so a stale committed artifact fails CI).
+
+Paths are resolved from this file, not from ``django.conf.settings``. The
+Vercel build imports this module *without* calling ``django.setup()`` — a
+stylesheet must not be able to fail a deploy because settings are blank.
 """
 from __future__ import annotations
 
@@ -23,10 +27,11 @@ import json
 import re
 from pathlib import Path
 
-from django.conf import settings
-
-CSS_SRC_DIR = Path(settings.APPS_DIR) / "core" / "static" / "css" / "src"
-CSS_OUT_DIR = Path(settings.APPS_DIR) / "core" / "static" / "css"
+# apps/core/static/css — same tree settings.APPS_DIR / "core" / "static" / "css"
+# used to point at, without requiring Django to be configured first.
+_CORE_DIR = Path(__file__).resolve().parent
+CSS_SRC_DIR = _CORE_DIR / "static" / "css" / "src"
+CSS_OUT_DIR = _CORE_DIR / "static" / "css"
 CSS_OUT = CSS_OUT_DIR / "app.css"
 MANIFEST = CSS_OUT_DIR / "manifest.json"
 
